@@ -1,4 +1,51 @@
-# Dilemma: eBay API feasibility test
+# Dilemma
+
+## Homepage: start here
+
+The homepage uses React, plain JavaScript and CSS, and Vite. Its URL input is a demo: submitting a valid URL only shows a message. It does not call eBay or save anything.
+
+From this project folder:
+
+```powershell
+npm install
+npm run dev
+```
+
+Open the Local URL printed in the terminal (usually http://127.0.0.1:5173). Keep the terminal running while coding. Saving a frontend file updates the page automatically. Press Ctrl+C to stop the server. You only need `npm install` after downloading the project or changing dependencies.
+
+```powershell
+npm run build
+npm test
+```
+
+The build command produces the deployable homepage in `dist/`. The test command runs the existing offline eBay checks.
+
+### Three files to explore
+
+1. `src/App.jsx`: the homepage content and its tiny submit interaction. `App` is a JavaScript function returning JSX, which looks like HTML inside JavaScript. `className` attaches CSS styles; `onSubmit={handleSubmit}` connects the form to a function. Unlike Java, JavaScript usually infers variable types. `const` prevents reassignment, similar to a Java `final` variable.
+2. `src/styles.css`: colours, spacing, typography and layout. A rule like `h1 { color: blue; }` selects headings and changes their appearance. The `@media` rules adapt the layout for smaller screens.
+3. `src/main.jsx`: the starting point. It imports the styles and `App`, then asks React to display `App` inside the `root` element in `index.html`. Think of it loosely like Java's `main` method.
+
+### What the tools do
+
+- **HTML** describes page structure, such as headings, links and inputs. `index.html` is the outer document; `App.jsx` supplies most of the page through JSX.
+- **CSS** describes appearance. Our rules live in `src/styles.css`.
+- **JavaScript** adds behaviour. `handleSubmit` in `src/App.jsx` prevents a reload and displays a message.
+- **React** is a JavaScript library for building pages from components. `useState` remembers the message; calling `setMessage` tells React to update what is displayed.
+- **npm** installs libraries and runs commands from `package.json`. `package-lock.json` records the installed dependency versions.
+- **Vite** runs the development server and bundles the frontend for production when you run `npm run build`.
+
+### Your tiny exercise
+
+In `src/styles.css`, find `--blue: #2458e6;` near the top. Change it to `--blue: #6441d9;`, save, and watch which parts of the homepage turn purple. This is a CSS variable: several style rules reuse that one value. You can undo it afterward.
+
+### Credentials
+
+Keep credentials in the ignored `.env` file. Never put them in frontend code or add a `VITE_` prefix to secrets: Vite exposes variables with that prefix to the browser. The frontend does not import the eBay script. `.env`, `node_modules/` and `dist/` are ignored by Git.
+
+---
+
+## Original eBay API feasibility test
 
 A standalone Node.js probe for eBay's **Production** Browse API. No web app, dependencies, database, or token files.
 
