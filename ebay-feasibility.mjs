@@ -104,16 +104,17 @@ export function extractVehicle(item, source) {
   };
 }
 
-export async function importListing(input, headers) {
+export async function importListing(input, headers, { quiet = false } = {}) {
   const source = parseItemUrl(input);
   // A web URL contains a legacy listing ID, not a Browse REST item ID.
   const url = new URL(`${API}/buy/browse/v1/item/get_item_by_legacy_id`);
   url.searchParams.set('legacy_item_id', source.legacyItemId);
   if (source.variationId) url.searchParams.set('legacy_variation_id', source.variationId);
-  console.log(`\nURL import: ${source.canonicalUrl}`);
+  if (!quiet) console.log(`\nURL import: ${source.canonicalUrl}`);
   const item = await request('URL import (getItemByLegacyId)', url, { headers });
   if (!item.itemId) throw new Error('URL import: API returned no item ID; import could not be confirmed.');
   const vehicle = extractVehicle(item, source);
+  if (quiet) return vehicle;
   const required = ['title', 'priceCAD', 'year', 'make', 'model', 'mileage', 'vin', 'condition', 'location', 'images', 'description'];
   const missing = required.filter(key => vehicle[key] == null || vehicle[key] === ''
     || (Array.isArray(vehicle[key]) && !vehicle[key].length));
@@ -125,6 +126,23 @@ export async function importListing(input, headers) {
   console.log('Vehicle identity, seller values and condition need review; URL retrieval does not validate a usable used car.');
   console.log('All listing data stays in memory and console output; no files or database records written.');
   return vehicle;
+}
+
+// Shared Production authentication. Credentials and tokens stay on the server.
+export async function authenticate() {
+  const clientId = process.env.EBAY_CLIENT_ID?.trim();
+  const clientSecret = process.env.EBAY_CLIENT_SECRET?.trim();
+  if (!clientId || !clientSecret) throw new Error('Set EBAY_CLIENT_ID and EBAY_CLIENT_SECRET in the local .env file.');
+  const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+  secrets.push(clientId, clientSecret, basic);
+  const auth = await request('OAuth token', `${API}/identity/v1/oauth2/token`, {
+    method: 'POST',
+    headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'client_credentials', scope: 'https://api.ebay.com/oauth/api_scope' }),
+  });
+  if (!auth.access_token) throw new Error('OAuth response did not contain an access token.');
+  secrets.push(auth.access_token);
+  return auth;
 }
 
 async function main() {
@@ -144,23 +162,7 @@ async function main() {
     if (error.code === 'ENOENT') throw new Error('Missing .env. Copy .env.example to .env and add Production credentials.');
     throw error;
   }
-  const clientId = process.env.EBAY_CLIENT_ID?.trim();
-  const clientSecret = process.env.EBAY_CLIENT_SECRET?.trim();
-  if (!clientId || !clientSecret) {
-    throw new Error('Set EBAY_CLIENT_ID and EBAY_CLIENT_SECRET in the local .env file. No API calls made.');
-  }
-  const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-  secrets.push(clientId, clientSecret, basic);
-  const auth = await request('OAuth token', `${API}/identity/v1/oauth2/token`, {
-    method: 'POST',
-    headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'client_credentials',
-      scope: 'https://api.ebay.com/oauth/api_scope',
-    }),
-  });
-  if (!auth.access_token) throw new Error('OAuth response did not contain an access token.');
-  secrets.push(auth.access_token);
+  const auth = await authenticate();
   console.log(`OAuth succeeded (expires in ${auth.expires_in ?? 'unknown'} seconds). Token kept in memory.\n`);
 
   const headers = {

@@ -1,47 +1,68 @@
 # Dilemma
 
-## Homepage: start here
+A temporary, in-memory eBay.ca used-car comparison for a Grade 12 CS demo. React + JavaScript + CSS, Vite, and a minimal Node.js API. Import up to four cars, view real photos, compare available fields and specifications, and read seller descriptions as safe plain text.
 
-The homepage uses React, plain JavaScript and CSS, and Vite. Its URL input is a demo: submitting a valid URL only shows a message. It does not call eBay or save anything.
+## Run locally
 
-From this project folder:
+Use Node.js 22.12+ (Node 24 recommended). From this project folder, install dependencies once:
 
 ```powershell
 npm install
+```
+
+Keep the existing ignored .env with EBAY_CLIENT_ID and EBAY_CLIENT_SECRET set to Production credentials. If starting a fresh checkout, copy .env.example to .env and fill it in locally. Never prefix secrets with VITE_: those variables are exposed to the browser.
+
+Terminal 1 — backend:
+
+```powershell
+npm run server
+```
+
+Terminal 2 — frontend:
+
+```powershell
 npm run dev
 ```
 
-Open the Local URL printed in the terminal (usually http://127.0.0.1:5173). Keep the terminal running while coding. Saving a frontend file updates the page automatically. Press Ctrl+C to stop the server. You only need `npm install` after downloading the project or changing dependencies.
+Open http://127.0.0.1:5173. Keep both terminals running; Ctrl+C stops each process. The backend runs on port 3001. Vite forwards /api requests to it, so no CORS configuration is needed. Save frontend files to see updates; restart the backend after editing server code. If port 3001 changes, update vite.config.js to match.
+
+## Checks and production preview
 
 ```powershell
-npm run build
 npm test
+npm run build
+npm run preview
 ```
 
-The build command produces the deployable homepage in `dist/`. The test command runs the existing offline eBay checks.
+For the production preview, keep the backend running and open http://127.0.0.1:4173. The dist folder contains the frontend only: it still needs the Node backend. Publishing requires a host that routes /api to Node; do not publish your .env or serve the project directory as static files.
 
-### Three files to explore
+Optional live check (uses Production API quota, stores no responses):
 
-1. `src/App.jsx`: the homepage content and its tiny submit interaction. `App` is a JavaScript function returning JSX, which looks like HTML inside JavaScript. `className` attaches CSS styles; `onSubmit={handleSubmit}` connects the form to a function. Unlike Java, JavaScript usually infers variable types. `const` prevents reassignment, similar to a Java `final` variable.
-2. `src/styles.css`: colours, spacing, typography and layout. A rule like `h1 { color: blue; }` selects headings and changes their appearance. The `@media` rules adapt the layout for smaller screens.
-3. `src/main.jsx`: the starting point. It imports the styles and `App`, then asks React to display `App` inside the `root` element in `index.html`. Think of it loosely like Java's `main` method.
+```powershell
+npm run test:live
+```
 
-### What the tools do
+It finds an available Canadian used-vehicle candidate, calls the new HTTP importer, and prints only status, field counts and a demo link. Inventory may change. The original feasibility CLI remains available below and intentionally prints its original diagnostic output; the website always calls the quiet importer.
 
-- **HTML** describes page structure, such as headings, links and inputs. `index.html` is the outer document; `App.jsx` supplies most of the page through JSX.
-- **CSS** describes appearance. Our rules live in `src/styles.css`.
-- **JavaScript** adds behaviour. `handleSubmit` in `src/App.jsx` prevents a reload and displays a message.
-- **React** is a JavaScript library for building pages from components. `useState` remembers the message; calling `setMessage` tells React to update what is displayed.
-- **npm** installs libraries and runs commands from `package.json`. `package-lock.json` records the installed dependency versions.
-- **Vite** runs the development server and bundles the frontend for production when you run `npm run build`.
+## How data moves
 
-### Your tiny exercise
+React form → POST /api/import → Node validates the URL → eBay OAuth → Production Browse getItemByLegacyId → Node extracts fields and strips description markup → JSON → React state and comparison table.
 
-In `src/styles.css`, find `--blue: #2458e6;` near the top. Change it to `--blue: #6441d9;`, save, and watch which parts of the homepage turn purple. This is a CSS variable: several style rules reuse that one value. You can undo it afterward.
+React state is similar to an object held in a Java program's memory. Updating it tells React to redraw the affected screen. A refresh clears the entire shortlist. The backend holds each listing only while processing a request; it does not maintain a comparison or listing cache. Responses use Cache-Control: no-store. No database, localStorage, sessionStorage, listing files, persistent caches or full listing logs are used by the app. Photos are loaded directly from eBay's returned HTTPS image URLs; image requests remain subject to the image host's own HTTP caching headers.
 
-### Credentials
+The app preserves raw mileage and explicit units, currency, missing fields and seller values. It does not infer year/make/model from titles. Known categories outside Cars & Trucks, New listings, and titles explicitly containing accessories are rejected. Seller categorization can still be inaccurate; confirm complete-vehicle identity with the seller. eBay coverage and listing completeness vary. No rankings, recommendations, chatbot, accounts or saved comparisons are included.
 
-Keep credentials in the ignored `.env` file. Never put them in frontend code or add a `VITE_` prefix to secrets: Vite exposes variables with that prefix to the browser. The frontend does not import the eBay script. `.env`, `node_modules/` and `dist/` are ignored by Git.
+## Three important files
+
+1. src/App.jsx: React components, temporary car state, URL form, loading/errors, remove actions and comparison table. Components are functions returning JSX (HTML-like markup). useState is the temporary data React watches.
+2. server.mjs: the HTTP boundary. Loads credentials on the backend, validates requests, calls eBay, returns safe errors and no-store JSON, and turns seller HTML into inert text. Similar to a small Java HTTP controller.
+3. ebay-feasibility.mjs: shared Production authentication, strict eBay.ca URL parsing and vehicle field extraction. Its standalone CLI still works; the backend passes quiet: true to suppress listing diagnostics.
+
+Visual styling lives in src/styles.css; Vite's /api proxy lives in vite.config.js. All existing Git history is retained. Development branch: codex/dilemma-functional. The initial homepage was checkpointed before functional changes.
+
+## Your tiny code change
+
+In src/App.jsx, change the button text 'Import car' to 'Add to shortlist'. Save the file and watch the button update. It's a string literal, just like text inside double quotes in Java; JavaScript also allows single quotes.
 
 ---
 
