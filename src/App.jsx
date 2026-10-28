@@ -51,7 +51,7 @@ export default function App() {
       if (!response.ok) throw new Error(data.error || 'Import failed. Please try again.');
       setCars(previous => previous.some(car => car.legacyItemId === data.vehicle.legacyItemId) ? previous : [...previous, data.vehicle].slice(0, 4));
       setUrl(''); setNotice('Listing imported. Scroll down to compare the details.');
-    } catch (err) { setError(err.name === 'TimeoutError' ? 'eBay took too long to respond. Please try again.' : err instanceof TypeError ? 'Cannot connect to the backend. Check that npm run server is running.' : err.message); }
+    } catch (err) { setError(err.name === 'TimeoutError' ? 'eBay took too long to respond. Please try again.' : err instanceof TypeError ? 'Could not connect to Dilemma. Please check your connection and try again.' : err.message); }
     finally { setLoading(false); }
   }
   const rows = [

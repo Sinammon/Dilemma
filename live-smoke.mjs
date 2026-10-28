@@ -1,6 +1,7 @@
 // Live checks keep all eBay data in memory; print only status and field counts.
 import { createApp } from './server.mjs';
 import { authenticate } from './ebay-feasibility.mjs';
+import vercelImport from './api/import.js';
 const token = await authenticate();
 const searchUrl = new URL('https://api.ebay.com/buy/browse/v1/item_summary/search');
 searchUrl.search = new URLSearchParams({ category_ids: '6001', filter: 'conditions:{USED},itemLocationCountry:CA', limit: '5' });
@@ -18,7 +19,16 @@ try {
     if (imported.status === 422) continue;
     if (!imported.ok) throw new Error(`Import returned HTTP ${imported.status}`);
     const { vehicle } = await imported.json();
-    console.log(JSON.stringify({ liveImport: 'passed', noStore: imported.headers.get('cache-control'), imageCount: vehicle.images.length, specificationCount: vehicle.itemSpecifics.length, hasDescription: Boolean(vehicle.description), mileageUnitReturned: Boolean(vehicle.mileage?.unit), demoUrl: vehicle.sourceUrl }));
+    // Execute the actual Vercel Web entry with real eBay calls, still locally.
+    const viaVercelHandler = await vercelImport.fetch(new Request('https://dilemma-smoke.example.test/api/import', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://dilemma-smoke.example.test' },
+      body: JSON.stringify({ url: item.itemWebUrl }),
+    }));
+    if (!viaVercelHandler.ok) throw new Error('Vercel handler returned HTTP ' + viaVercelHandler.status);
+    const viaVercelVehicle = (await viaVercelHandler.json()).vehicle;
+    if (viaVercelVehicle.legacyItemId !== vehicle.legacyItemId) throw new Error('Adapters returned different listing IDs.');
+    if (viaVercelHandler.headers.get('cache-control') !== 'no-store') throw new Error('Vercel handler missing no-store.');
+    console.log(JSON.stringify({ liveImport: 'passed', localHttp: 'passed', vercelHandlerLocally: 'passed', noStore: imported.headers.get('cache-control'), imageCount: vehicle.images.length, specificationCount: vehicle.itemSpecifics.length, hasDescription: Boolean(vehicle.description), mileageUnitReturned: Boolean(vehicle.mileage?.unit), demoUrl: vehicle.sourceUrl }));
     success = true;
     break;
   }

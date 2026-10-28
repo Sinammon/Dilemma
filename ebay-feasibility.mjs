@@ -19,10 +19,10 @@ function safe(value) {
   return result;
 }
 
-async function request(label, url, options = {}) {
+async function request(label, url, { timeoutMs = 30000, quiet = false, ...options } = {}) {
   let response;
   try {
-    response = await fetch(url, { ...options, signal: AbortSignal.timeout(30_000) });
+    response = await fetch(url, { ...options, cache: 'no-store', signal: AbortSignal.timeout(timeoutMs) });
   } catch (error) {
     throw new Error(`${label}: network/timeout failure (${error.cause?.code ?? error.name}).`);
   }
@@ -36,7 +36,7 @@ async function request(label, url, options = {}) {
     throw new Error(`${label}: HTTP ${response.status}: ${safe(messages)}.${hint}`);
   }
   if (!data) throw new Error(`${label}: expected a JSON response.`);
-  for (const warning of data.warnings ?? []) {
+  for (const warning of quiet ? [] : data.warnings ?? []) {
     console.warn(safe(`eBay warning ${warning.errorId}: ${warning.message}`));
   }
   return data;
@@ -104,14 +104,14 @@ export function extractVehicle(item, source) {
   };
 }
 
-export async function importListing(input, headers, { quiet = false } = {}) {
+export async function importListing(input, headers, { quiet = false, timeoutMs = 30000 } = {}) {
   const source = parseItemUrl(input);
   // A web URL contains a legacy listing ID, not a Browse REST item ID.
   const url = new URL(`${API}/buy/browse/v1/item/get_item_by_legacy_id`);
   url.searchParams.set('legacy_item_id', source.legacyItemId);
   if (source.variationId) url.searchParams.set('legacy_variation_id', source.variationId);
   if (!quiet) console.log(`\nURL import: ${source.canonicalUrl}`);
-  const item = await request('URL import (getItemByLegacyId)', url, { headers });
+  const item = await request('URL import (getItemByLegacyId)', url, { headers, quiet, timeoutMs });
   if (!item.itemId) throw new Error('URL import: API returned no item ID; import could not be confirmed.');
   const vehicle = extractVehicle(item, source);
   if (quiet) return vehicle;
@@ -129,13 +129,14 @@ export async function importListing(input, headers, { quiet = false } = {}) {
 }
 
 // Shared Production authentication. Credentials and tokens stay on the server.
-export async function authenticate() {
+export async function authenticate({ timeoutMs = 30000, quiet = false } = {}) {
   const clientId = process.env.EBAY_CLIENT_ID?.trim();
   const clientSecret = process.env.EBAY_CLIENT_SECRET?.trim();
   if (!clientId || !clientSecret) throw new Error('Set EBAY_CLIENT_ID and EBAY_CLIENT_SECRET in the local .env file.');
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
   secrets.push(clientId, clientSecret, basic);
   const auth = await request('OAuth token', `${API}/identity/v1/oauth2/token`, {
+    timeoutMs, quiet,
     method: 'POST',
     headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ grant_type: 'client_credentials', scope: 'https://api.ebay.com/oauth/api_scope' }),

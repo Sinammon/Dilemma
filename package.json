@@ -7,7 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node --test ebay-feasibility.test.mjs server.test.mjs",
+    "test": "node --test ebay-feasibility.test.mjs server.test.mjs vercel.test.mjs",
     "server": "node server.mjs",
     "test:live": "node live-smoke.mjs"
   },
@@ -17,5 +17,8 @@
   },
   "devDependencies": {
     "vite": "8.3.5"
+  },
+  "engines": {
+    "node": "24.x"
   }
 }

@@ -4,7 +4,7 @@ A temporary, in-memory eBay.ca used-car comparison for a Grade 12 CS demo. React
 
 ## Run locally
 
-Use Node.js 22.12+ (Node 24 recommended). From this project folder, install dependencies once:
+Use Node.js 24 (also pinned for Vercel in package.json). From this project folder, install dependencies once:
 
 ```powershell
 npm install
@@ -34,7 +34,7 @@ npm run build
 npm run preview
 ```
 
-For the production preview, keep the backend running and open http://127.0.0.1:4173. The dist folder contains the frontend only: it still needs the Node backend. Publishing requires a host that routes /api to Node; do not publish your .env or serve the project directory as static files.
+For the production preview, keep the backend running and open http://127.0.0.1:4173. The dist folder contains the frontend only: it still needs the Node backend. Vercel hosts dist plus the functions in api/ using vercel.json. Do not upload only dist: it does not contain the backend. Never publish your .env or serve the project directory as static files.
 
 Optional live check (uses Production API quota, stores no responses):
 
@@ -42,7 +42,54 @@ Optional live check (uses Production API quota, stores no responses):
 npm run test:live
 ```
 
-It finds an available Canadian used-vehicle candidate, calls the new HTTP importer, and prints only status, field counts and a demo link. Inventory may change. The original feasibility CLI remains available below and intentionally prints its original diagnostic output; the website always calls the quiet importer.
+It finds an available Canadian used-vehicle candidate and tests both the local HTTP importer and the actual Vercel Web handler running locally. It prints only status, field counts and a demo link. This does not prove that a hosted Vercel deployment works. Inventory may change. The original feasibility CLI remains available below and intentionally prints its original diagnostic output; the website always calls the quiet importer.
+
+## Deploy to Vercel
+
+This is a Vite frontend plus Node.js Functions, not a Next.js project. The root api/import.js exports Vercel's Web Request handler; api/health.js returns a small health response. Both use backend/handler.mjs, without importing the local server or reading .env. Vercel supplies process.env credentials at runtime. React continues to POST to the relative /api/import path.
+
+### Publish the prepared branch
+
+The destination is https://github.com/Sinammon/Dilemma.git. The existing origin points to AI-Shopping-Assistant, so do not blindly run git push origin. Inspect remote branches first and never force-push. After approving publication, the explicit branch push is:
+
+```powershell
+git push https://github.com/Sinammon/Dilemma.git codex/vercel-deployment:codex/vercel-deployment
+```
+
+This creates or fast-forwards the deployment branch without overwriting main. Vercel may automatically start a Preview deployment if the repository is already connected. A successful push is not proof of a successful deployment.
+
+### Project settings
+
+1. In Vercel, import Sinammon/Dilemma (or open that existing Vercel project). Root Directory: repository root. Framework Preset: Vite. Build Command: npm run build. Output Directory: dist. Install Command: npm ci. Use Node.js 24.x; package.json pins it. Do not use npm run server as the Vercel build/start command.
+2. For a preview, deploy the codex/vercel-deployment Git branch. If you want this branch to serve the production site, open Settings → Environments → Production → Branch Tracking and select codex/vercel-deployment. Alternatively merge this branch into main first and keep main as the production branch. Deploying the old main commit alone will not include this adapter.
+3. Before deploying, open the project's Settings → Environment Variables. Add EBAY_CLIENT_ID with your Production App ID and EBAY_CLIENT_SECRET with your Production Cert ID. Copy the values privately from your local .env; do not paste them into chat, GitHub, vercel.json, or frontend code. Select Production and Preview (or restrict Preview to this trusted deployment branch). Use Sensitive where offered. No VITE_ prefixes.
+4. Save the variables, then deploy/redeploy the intended branch. Environment-variable changes apply to new deployments, not existing ones. The local .env stays on your computer. .vercelignore additionally excludes environment files from CLI uploads; .gitignore remains unchanged.
+5. Keep the generated HTTPS deployment URL for the checks below. If the preview requires Vercel sign-in, authenticate normally; do not disable deployment protection just for testing.
+
+### Verify after deployment
+
+- Open https://YOUR-DEPLOYMENT/api/health: expect {"ok":true}.
+- Load the home page and import a currently available eBay.ca complete used-vehicle URL. Check real photos, price/currency, comparison fields and seller description. Missing units must remain explicitly unknown.
+- Add up to four different cars, check duplicate protection, remove a car, and refresh to confirm the shortlist clears.
+- In browser developer tools → Network, inspect /api/import: it must return JSON and Cache-Control: no-store. A GET to /api/import should return 405 JSON, not the homepage. A broken listing should produce a useful error.
+- Check a phone-sized layout. Check the Vercel deployment's function logs for status/errors without adding payload or credential logging.
+
+### Routing, timeout and data behavior
+
+Vercel serves / from the Vite dist output and detects /api/import and /api/health from the root api directory. The app uses hash links, so no SPA catch-all rewrite is needed; a catch-all could accidentally hide API errors. Same-origin requests work on production, preview and custom domains. Other origins are rejected; no wildcard CORS is enabled.
+
+vercel.json sets api/import.js to a 60-second maximum. Each eBay call times out after 25 seconds, giving OAuth plus Browse about 50 seconds and leaving room for a JSON error before the function limit. The browser already allows 70 seconds. No background tasks, database, persistent listing caches, accounts or recommendation features are added. All API responses set no-store for browser and CDN caching. Frontend assets can use Vercel's normal static caching. Direct eBay images remain subject to their image host's HTTP caching policy.
+
+If /api/health is 404, verify Root Directory and that the deployed commit includes api/. If POST /api/import returns HTML, check for an old SPA rewrite or the wrong deployed branch. A 503 authentication message means the Production credentials or eBay permissions need checking; a 504 means an upstream connection/timeout failure. Do not diagnose by logging secrets or complete listing payloads.
+
+### Verification recorded for this change
+
+- npm test: 20 passing checks covering the original CLI importer, local HTTP adapter, actual Vercel Web entry point, missing credentials, origin validation, timeout/error mapping, body limits and no-store responses.
+- npm run build: production frontend build passed.
+- npm run test:live: real Production eBay import passed through local HTTP and the Vercel handler running locally; responses stayed in memory.
+- Hosted verification: pending publication, Vercel environment settings and an actual deployment URL. No hosted deployment has been claimed or verified by these local tests.
+
+Official references: [Node.js Functions](https://vercel.com/docs/functions/runtimes/node-js), [Vite](https://vercel.com/docs/frameworks/frontend/vite), [function durations](https://vercel.com/docs/functions/configuring-functions/duration), [environment variables](https://vercel.com/docs/environment-variables).
 
 ## How data moves
 
@@ -55,10 +102,10 @@ The app preserves raw mileage and explicit units, currency, missing fields and s
 ## Three important files
 
 1. src/App.jsx: React components, temporary car state, URL form, loading/errors, remove actions and comparison table. Components are functions returning JSX (HTML-like markup). useState is the temporary data React watches.
-2. server.mjs: the HTTP boundary. Loads credentials on the backend, validates requests, calls eBay, returns safe errors and no-store JSON, and turns seller HTML into inert text. Similar to a small Java HTTP controller.
+2. backend/handler.mjs: the shared HTTP controller. Validates requests, calls eBay, returns safe errors and no-store JSON, and turns seller HTML into inert text. server.mjs adapts local Node requests to it; api/import.js exposes the same handler on Vercel.
 3. ebay-feasibility.mjs: shared Production authentication, strict eBay.ca URL parsing and vehicle field extraction. Its standalone CLI still works; the backend passes quiet: true to suppress listing diagnostics.
 
-Visual styling lives in src/styles.css; Vite's /api proxy lives in vite.config.js. All existing Git history is retained. Development branch: codex/dilemma-functional. The initial homepage was checkpointed before functional changes.
+Visual styling lives in src/styles.css; Vite's /api proxy lives in vite.config.js. All existing Git history is retained. The original app is on codex/dilemma-functional; Vercel preparation is on codex/vercel-deployment. The initial homepage was checkpointed before functional changes.
 
 ## Your tiny code change
 
