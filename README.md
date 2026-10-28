@@ -48,15 +48,41 @@ It finds an available Canadian used-vehicle candidate and tests both the local H
 
 This is a Vite frontend plus Node.js Functions, not a Next.js project. The root api/import.js exports Vercel's Web Request handler; api/health.js returns a small health response. Both use backend/handler.mjs, without importing the local server or reading .env. Vercel supplies process.env credentials at runtime. React continues to POST to the relative /api/import path.
 
-### Publish the prepared branch
+### Fix a hosted /api/health NOT_FOUND
 
-The destination is https://github.com/Sinammon/Dilemma.git. The existing origin points to AI-Shopping-Assistant, so do not blindly run git push origin. Inspect remote branches first and never force-push. After approving publication, the explicit branch push is:
+A Vercel `404 NOT_FOUND` at `/api/health` means that request did not reach this app's health handler. Health does not authenticate with eBay. Production credentials cannot fix a missing route. The frontend's former JSON parsing error came from trying to parse the platform's HTML/text error as JSON; the frontend now reports a missing/unavailable API safely.
+
+The checked-in `api/health.js` and `api/import.js` are beside `package.json` and `vercel.json` at the repository root. Their Web Request exports are supported by Vercel. `vercel.json` has no rewrites, redirects or legacy `builds` override. `outputDirectory: dist` selects the static frontend output; Vercel separately discovers root `api/` functions. Vite's local proxy is only for development/preview and is not deployed as a backend. Do not copy API source or credentials into `dist`.
+
+Check the actual Vercel project (these dashboard settings are not stored in this checkout):
+
+1. Settings → Git: connected repository must be `Sinammon/Dilemma`; production branch must be `main`. The deployment adapter has been merged into GitHub main at `370b578`. A redeploy of an older deployment may still rebuild its old commit; create a deployment from the latest main instead.
+2. Settings → Build and Deployment: Root Directory must be the repository root (blank or `.`), **not `dist`, `src` or `api`**. That directory must contain `package.json`, `vercel.json`, `api/`, `backend/`, and `ebay-feasibility.mjs` together. Framework: Vite; install: `npm ci`; build: `npm run build`; output: `dist`; Node: 24.x. `npm run server` is only for local use.
+3. Keep the existing server-side Production variables `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET`. No `VITE_` prefix. Do not print values or add them to Git. They are not needed for health checks.
+4. Deploy the latest main from the full repository, then inspect that deployment's build output/resources. It must list **both** `/api/health` and `/api/import` as Node functions as well as static assets. A deployment containing only `index.html` and assets is incomplete. If using CLI, run it from the repository root, never from `dist`; do not use a static-only or incomplete prebuilt upload.
+5. Test the new deployment's exact HTTPS URL first, then the public production domain. If only the latter fails, check which project/deployment the domain is assigned to. Preserve deployment protection; an authenticated test is needed for protected deployments.
+
+Run the hosted routing check (it loads no credentials and prints no response bodies):
 
 ```powershell
-git push https://github.com/Sinammon/Dilemma.git codex/vercel-deployment:codex/vercel-deployment
+npm run test:deployment -- https://YOUR-DEPLOYMENT
 ```
 
-This creates or fast-forwards the deployment branch without overwriting main. Vercel may automatically start a Preview deployment if the repository is already connected. A successful push is not proof of a successful deployment.
+It requires GET `/api/health` → 200 JSON `{ "ok": true }`, GET `/api/import` → 405 JSON, and POST `/api/import` with an invalid listing URL → 400 JSON. This confirms both deployed routes and same-origin request validation, but deliberately does not claim eBay authentication. Then use the frontend to import a currently available complete used-car listing and confirm POST `/api/import` → 200 JSON with `vehicle`. A JSON 503 at this stage means the handler is deployed but authentication/permissions need attention.
+
+Verification for the follow-up fix: 23 offline checks passed, production Vite build passed, and live Production eBay OAuth and listing import passed through local HTTP and the Vercel Web entry point **running locally**. No hosted deployment or configured dashboard root has been verified without a deployment URL and project access. Changes to frontend error handling do not themselves install missing hosted functions.
+
+Hosted check on 2026-10-28 at `https://cardilemma015.vercel.app`: GET `/` returned 200 HTML; GET `/api/health`, GET `/api/import`, and POST `/api/import` with a listing URL all returned 404 `text/plain` with `x-vercel-error: NOT_FOUND`. The deployment smoke command correctly failed. Neither API handler was reachable at that domain, so hosted eBay authentication could not be tested. The dashboard project root, source deployment and function resources still require inspection with authenticated Vercel access.
+
+### Repository and branch
+
+The destination is https://github.com/Sinammon/Dilemma.git. The existing origin points to AI-Shopping-Assistant, so do not blindly run git push origin. The deployment adapter is already merged into Dilemma main. After committing further fixes, inspect remote branches first and never force-push. Push the intended main explicitly:
+
+```powershell
+git push https://github.com/Sinammon/Dilemma.git main:main
+```
+
+Vercel may automatically start a Production deployment if main is the tracked production branch. A successful push is not proof of a successful deployment.
 
 ### Project settings
 

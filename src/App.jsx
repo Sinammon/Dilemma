@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { readImportResponse } from './import-response.js';
 
 const show = value => Array.isArray(value) ? value.join(', ') || 'Not provided' : value || 'Not provided';
 function price(car) {
@@ -47,8 +48,7 @@ export default function App() {
     setLoading(true);
     try {
       const response = await fetch('/api/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url.trim() }), cache: 'no-store', signal: AbortSignal.timeout(70000) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Import failed. Please try again.');
+      const data = await readImportResponse(response);
       setCars(previous => previous.some(car => car.legacyItemId === data.vehicle.legacyItemId) ? previous : [...previous, data.vehicle].slice(0, 4));
       setUrl(''); setNotice('Listing imported. Scroll down to compare the details.');
     } catch (err) { setError(err.name === 'TimeoutError' ? 'eBay took too long to respond. Please try again.' : err instanceof TypeError ? 'Could not connect to Dilemma. Please check your connection and try again.' : err.message); }
