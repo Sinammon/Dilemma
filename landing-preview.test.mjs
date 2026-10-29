@@ -1,0 +1,74 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { JSDOM } from 'jsdom';
+import { createServer } from 'vite';
+
+test('sample carousel advances slowly and suspends while hovered, focused, hidden, paused, or comparing', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost', pretendToBeVisual: true });
+  const globals = ['window', 'document', 'HTMLElement', 'Element', 'SVGElement'];
+  for (const name of globals) globalThis[name] = dom.window[name];
+  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
+  globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
+  globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  dom.window.matchMedia = query => ({ matches: false, media: query, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
+  let hidden = false;
+  Object.defineProperty(document, 'hidden', { get: () => hidden, configurable: true });
+  const intervals = new Map();
+  const originalSetInterval = globalThis.setInterval;
+  const originalClearInterval = globalThis.clearInterval;
+  globalThis.setInterval = (callback, delay, ...args) => {
+    if (delay !== 5500) return originalSetInterval(callback, delay, ...args);
+    const handle = {};
+    intervals.set(handle, callback);
+    return handle;
+  };
+  globalThis.clearInterval = handle => intervals.delete(handle) || originalClearInterval(handle);
+  const React = await import('react');
+  const { createRoot } = await import('react-dom/client');
+  const { LazyMotion, domAnimation } = await import('motion/react');
+  const { act } = React;
+  const root = createRoot(document.getElementById('root'));
+  const vite = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
+  try {
+    const { default: Preview } = await vite.ssrLoadModule('/src/LandingPreview.jsx');
+    await act(async () => root.render(React.createElement(LazyMotion, { features: domAnimation }, React.createElement(Preview, { onStart() {} }))));
+    assert.equal(intervals.size, 1);
+    assert.equal(document.querySelector('.sample-car[aria-hidden="false"] h3').textContent, 'Honda Civic');
+    await act(async () => [...intervals.values()][0]());
+    assert.equal(document.querySelector('.sample-car[aria-hidden="false"] h3').textContent, 'Toyota Corolla');
+    const preview = document.querySelector('.product-preview');
+    await act(async () => preview.dispatchEvent(new dom.window.MouseEvent('mouseover', { bubbles: true })));
+    assert.equal(intervals.size, 0, 'hover pauses auto-advance');
+    await act(async () => preview.dispatchEvent(new dom.window.MouseEvent('mouseout', { bubbles: true })));
+    assert.equal(intervals.size, 1);
+    await act(async () => preview.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true })));
+    assert.equal(intervals.size, 0, 'keyboard interaction pauses auto-advance');
+    await act(async () => preview.dispatchEvent(new dom.window.FocusEvent('focusout', { bubbles: true })));
+    assert.equal(intervals.size, 1);
+    await act(async () => { hidden = true; document.dispatchEvent(new dom.window.Event('visibilitychange')); });
+    assert.equal(intervals.size, 0, 'hidden tabs do no carousel work');
+    await act(async () => { hidden = false; document.dispatchEvent(new dom.window.Event('visibilitychange')); });
+    assert.equal(intervals.size, 1);
+    await act(async () => document.querySelector('.carousel-toggle').click());
+    assert.equal(intervals.size, 0, 'explicit pause persists');
+    await act(async () => document.querySelector('.carousel-toggle').click());
+    assert.equal(intervals.size, 1);
+    await act(async () => document.querySelectorAll('.preview-stages button')[1].click());
+    assert.equal(intervals.size, 0, 'other stages do no carousel work');
+    assert.ok(document.querySelector('.preview-comparison'));
+    await act(async () => document.querySelectorAll('.preview-stages button')[0].click());
+    assert.equal(intervals.size, 1);
+    await act(async () => document.querySelector('.carousel-next').click());
+    assert.equal(intervals.size, 0, 'manual navigation stops auto-advance');
+    assert.equal(document.querySelector('.sample-car[aria-hidden="false"] h3').textContent, 'Mazda3');
+  } finally {
+    await act(async () => root.unmount());
+    await new Promise(resolve => setTimeout(resolve, 60));
+    await vite.close();
+    dom.window.close();
+    globalThis.setInterval = originalSetInterval;
+    globalThis.clearInterval = originalClearInterval;
+    for (const name of [...globals, 'getComputedStyle', 'requestAnimationFrame', 'cancelAnimationFrame', 'IS_REACT_ACT_ENVIRONMENT']) delete globalThis[name];
+  }
+});

@@ -5,6 +5,23 @@ import { rankCars, mileageKm, detectWarnings, rankDecisionMode, DECISION_MODES }
 // All fixtures are fictional; no eBay listing data is saved.
 const car = (id, price, year, raw = '100000', unit = 'km', extra = {}) => ({ legacyItemId: id, title: `Fictional car ${id}`, priceCAD: { value: String(price), currency: 'CAD' }, year: String(year), mileage: { raw, unit }, ...extra });
 const pair = [car('A', 10000, 2016), car('B', 20000, 2021)];
+
+test('expanded seller-reported odometer values score in compatible units and conflicts exclude mileage', () => {
+  const cars = [
+    car('A', 10000, 2016, '80000', null, { description: '<p>Odometer reads <strong>80k</strong> miles.</p>' }),
+    car('B', 10000, 2016, '130000', null, { description: 'Mileage is in KM.' }),
+  ];
+  const original = structuredClone(cars);
+  const result = rankCars(cars, { mileage: 100 }, 2026);
+  assert.equal(result.best[0].car.legacyItemId, 'A');
+  assert.ok(Math.abs(result.ranked[0].values.mileage - 128747.52) < 0.000001);
+  assert.equal(result.ranked[1].values.mileage, 130000);
+  assert.deepEqual(cars, original);
+  assert.equal(mileageKm({ raw: '80k miles' }), 128747.52);
+  const conflicted = rankCars([cars[0], { ...cars[1], description: '130k km. Mileage is in miles.' }], { mileage: 100 }, 2026);
+  assert.equal(conflicted.criteria.find(c => c.key === 'mileage').active, false);
+  assert.equal(conflicted.best.length, 0);
+});
 test('weighted scores match a hand calculation and do not mutate inputs', () => {
   const original = structuredClone(pair);
   const result = rankCars(pair, { price: 60, age: 30, mileage: 10 }, 2026);

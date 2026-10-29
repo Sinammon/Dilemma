@@ -4,6 +4,8 @@ A temporary, in-memory eBay.ca used-car comparison for a Grade 12 CS demo. React
 
 ## Decision engine
 
+Vehicle evidence now includes optional NHTSA vPIC VIN decoding and strict matching against a bundled official NRCan fuel-consumption snapshot. Source badges distinguish seller claims, original VIN records, corroboration and unknown/conflicting values. See [REVIEW.md](REVIEW.md) for the current scoring rules, source limits, Java comparisons, worked example and four-minute demo outline. User comparisons remain temporary and in memory.
+
 The app now follows Import ? Compare ? Decide, with a dedicated comparison page, mileage-unit evidence and six clickable decision modes. Recommendations use transparent scoring, missing-data exclusions and mechanical-warning safeguards. See [DECISION_ENGINE.md](DECISION_ENGINE.md) for the scoring example, three key files, Java comparisons, demonstration steps and review limitations.
 
 ## Run locally

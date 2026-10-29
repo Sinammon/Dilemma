@@ -1,10 +1,15 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { readImportResponse } from './import-response.js';
+import { LazyMotion, domAnimation, m, MotionConfig, useReducedMotion } from 'motion/react';
 import DecisionDashboard from './DecisionDashboard.jsx';
 import VehicleComparison from './VehicleComparison.jsx';
+import LandingPreview from './LandingPreview.jsx';
+import Icon from './Icons.jsx';
+import { enrichVehicle } from './enrichment.js';
 
 const route = () => ['compare', 'decide'].includes(window.location.hash.slice(1)) ? window.location.hash.slice(1) : 'import';
 export default function App() {
+  const reduced = useReducedMotion();
   // One owner keeps imported data in memory across all three pages.
   const [cars, setCars] = useState([]);
   const [page, setPage] = useState(route);
@@ -13,6 +18,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const enrichmentTasks = useRef(new Set());
+  useEffect(() => () => { for (const controller of enrichmentTasks.current) controller.abort(); }, []);
   useEffect(() => {
     const onHashChange = () => setPage(route());
     window.addEventListener('hashchange', onHashChange);
@@ -23,6 +30,17 @@ export default function App() {
     window.scrollTo(0, 0);
   }, [page]);
   function navigate(next) { window.location.hash = next; setPage(next); }
+  function startImport() {
+    navigate('import');
+    requestAnimationFrame(() => {
+      document.getElementById('listing-url')?.focus({ preventScroll: true });
+      document.getElementById('listing-url')?.scrollIntoView({ behavior: reduced ? 'instant' : 'smooth', block: 'center' });
+    });
+  }
+  function showSteps() {
+    navigate('import');
+    requestAnimationFrame(() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: reduced ? 'instant' : 'smooth', block: 'center' }));
+  }
   async function handleSubmit(event) {
     event.preventDefault();
     if (loading || cars.length >= 4) return;
@@ -38,20 +56,37 @@ export default function App() {
     try {
       const response = await fetch('/api/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url.trim() }), cache: 'no-store', signal: AbortSignal.timeout(70000) });
       const data = await readImportResponse(response);
-      setCars(previous => previous.some(car => car.legacyItemId === data.vehicle.legacyItemId) ? previous : [...previous, data.vehicle].slice(0, 4));
+      const imported = { ...data.vehicle, enrichment: { status: 'loading' } };
+      setCars(previous => previous.some(car => car.legacyItemId === imported.legacyItemId) ? previous : [...previous, imported].slice(0, 4));
+      const controller = new AbortController();
+      enrichmentTasks.current.add(controller);
+      void enrichVehicle(imported, { signal: controller.signal }).then(enrichment => {
+        if (!controller.signal.aborted) setCars(previous => previous.map(car => car === imported ? { ...car, enrichment } : car));
+      }).catch(() => {
+        if (!controller.signal.aborted) setCars(previous => previous.map(car => car === imported ? { ...car, enrichment: { status: 'unavailable' } } : car));
+      }).finally(() => enrichmentTasks.current.delete(controller));
       setUrl(''); setNotice('Listing imported. Compare the available seller details below.');
       navigate('compare');
     } catch (err) { setError(err.name === 'TimeoutError' ? 'eBay took too long to respond. Please try again.' : err instanceof TypeError ? 'Could not connect to Dilemma. Please check your connection and try again.' : err.message); }
     finally { setLoading(false); }
   }
-  const importForm = <form className="url-form" onSubmit={handleSubmit} aria-busy={loading}><label htmlFor="listing-url">{cars.length ? 'Add another contender. Paste its eBay.ca link.' : 'Found a contender? Paste its eBay.ca link.'}</label><div className="input-row"><input id="listing-url" type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://www.ebay.ca/itm/..." required maxLength={2048} disabled={loading || cars.length >= 4} aria-describedby="input-note import-error" /><button disabled={loading || cars.length >= 4} type="submit">{loading ? 'Importing…' : cars.length >= 4 ? 'Shortlist full' : 'Import car →'}</button></div><p id="input-note" className="input-note">{cars.length}/4 cars added · In memory only · No account needed</p><p id="import-error" role="alert" className="error-message">{error}</p><p role="status" className="form-message">{loading ? 'Connecting to eBay and bringing in listing details…' : notice}</p></form>;
-  return <div className="site-shell">
-    <header className="site-header"><a className="brand" href="#import" aria-label="Dilemma home"><span className="brand-mark">d.</span>Dilemma<span className="brand-dot">.</span></a><nav aria-label="Main navigation"><a href="#import" aria-current={page === 'import' ? 'page' : undefined}>Import</a><a href="#compare" aria-current={page === 'compare' ? 'page' : undefined}>Compare <span className="nav-count">{cars.length}/4</span></a><a href="#decide" aria-current={page === 'decide' ? 'page' : undefined}>Decide</a></nav></header>
-    <div className="workflow" aria-label="Your progress">{[['import', '01', 'Import'], ['compare', '02', 'Compare'], ['decide', '03', 'Decide']].map(([id, n, label]) => <a href={`#${id}`} key={id} aria-current={page === id ? 'step' : undefined}><span>{n}</span>{label}</a>)}</div>
-    <main>
-      {page === 'import' && <><section className="hero"><div className="hero-copy"><p className="eyebrow"><span /> A clearer road to your next car</p><h1 tabIndex={-1}>Stop searching.<br /><span>Start deciding.</span></h1><p className="hero-description">Four contenders. One clearer decision. Bring real eBay.ca listings together, compare the facts and find a match for what matters to you.</p>{importForm}{!!cars.length && <a className="source-link" href="#compare">Return to your comparison →</a>}</div><div className="hero-art"><div className="art-topline"><span>LESS GUESSWORK. MORE CLARITY.</span><span>↗</span></div><p className="art-heading">Your next<br /><em>chapter.</em></p><svg className="car-scene" viewBox="0 0 520 310" role="img" aria-label="Blue car on the road ahead"><ellipse cx="268" cy="267" rx="199" ry="22" fill="#bdcbed"/><path d="M-20 310 Q130 175 250 274 T560 245" fill="none" stroke="#fff" strokeWidth="42" opacity=".65"/><path d="M84 194 132 126 Q142 112 161 112 H305 Q326 112 344 133 L394 180 439 196 Q450 200 450 215 V243 H67 V215 Q67 199 84 194Z" fill="#2458e6"/><path d="m148 132-36 53h107v-53ZM232 132v53h135l-50-47q-6-6-16-6Z" fill="#dcecff"/><circle cx="143" cy="241" r="34" fill="#172e57"/><circle cx="143" cy="241" r="17" fill="#e0e9fa"/><circle cx="369" cy="241" r="34" fill="#172e57"/><circle cx="369" cy="241" r="17" fill="#e0e9fa"/></svg><div className="art-bottomline"><span>A little clarity. A lot of possibility.</span><span>✦</span></div></div></section><section className="steps" aria-label="How it works">{[['01', 'Import real listings', 'Add up to four eBay.ca used vehicles.'], ['02', 'Compare the facts', 'See seller details and missing information.'], ['03', 'Decide your way', 'Six modes. Clear reasons and trade-offs.']].map(([n, title, text]) => <div key={n}><span className="step-number">{n}</span><div><h2>{title}</h2><p>{text}</p></div></div>)}</section></>}
+  const importForm = <form className="url-form" onSubmit={handleSubmit} aria-busy={loading}>
+    <label htmlFor="listing-url">{cars.length ? 'Add another car to your shortlist' : 'Your next car starts with a link'}</label>
+    <div className="input-row"><Icon name="link" size={22} /><input id="listing-url" type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="Paste an eBay.ca car link…" required maxLength={2048} disabled={loading || cars.length >= 4} aria-invalid={!!error} aria-describedby="input-note import-error" /><button disabled={loading || cars.length >= 4} type="submit">{loading && <span className="loading-spinner" aria-hidden="true" />}{loading ? 'Importing…' : cars.length >= 4 ? 'Shortlist full' : 'Import car'}{!loading && cars.length < 4 && <Icon name="arrow" size={18} />}</button></div>
+    <p id="input-note" className="input-note"><Icon name="check" size={14} /> No account needed <span>·</span> {cars.length ? `${cars.length}/4 cars added` : 'Compare up to 4 cars'}</p><p id="import-error" role="alert" className="error-message">{error}</p><p role="status" className="form-message">{loading ? 'Connecting to eBay and bringing in listing details…' : notice}</p>
+  </form>;
+  const enter = { initial: { opacity: reduced ? 1 : 0, y: reduced ? 0 : 14 }, animate: { opacity: 1, y: 0 }, transition: { duration: reduced ? 0 : 0.5, ease: [0.22, 1, 0.36, 1] } };
+  return <LazyMotion features={domAnimation} strict><MotionConfig reducedMotion="user"><div className={`site-shell ${page === 'import' ? 'landing-shell' : ''}`}>
+    <a className="skip-link" href="#main-content" onClick={event => { event.preventDefault(); document.getElementById('main-content')?.focus(); }}>Skip to content</a>
+    <header className="site-header"><a className="brand" href="#import" aria-label="Dilemma home"><span className="brand-mark">d.</span>Dilemma<span className="brand-dot">.</span></a><nav aria-label="Main navigation"><button className="nav-link how-link" type="button" onClick={showSteps}>How it works</button><a className="shortlist-link" href="#compare" aria-current={page === 'compare' ? 'page' : undefined}>Your shortlist{cars.length > 0 && <span className="nav-count">{cars.length}</span>}</a><button className="nav-button" type="button" onClick={startImport}>Get started <Icon name="arrow" size={17} /></button></nav></header>
+    {page !== 'import' && <div className="workflow" aria-label="Your progress">{[['import', '01', 'Import'], ['compare', '02', 'Compare'], ['decide', '03', 'Decide']].map(([id, n, label]) => <a href={`#${id}`} key={id} aria-current={page === id ? 'step' : undefined}><span>{n}</span>{label}</a>)}</div>}
+    <main id="main-content" tabIndex={-1}><m.div key={page} className="page-transition" {...enter}>
+      {page === 'import' && <>
+        <section className="hero"><m.div className="hero-copy" {...enter}><p className="eyebrow"><span /> THE SHORTLIST. WITHOUT THE SECOND-GUESSING.</p><h1 tabIndex={-1}>Stop searching.<br /><span>Start deciding.</span></h1><p className="hero-description">Bring your eBay.ca finds together.<br className="desktop-break" /> Compare what matters. Choose with clarity.</p>{importForm}{!!cars.length && <a className="source-link" href="#compare">Return to your comparison →</a>}</m.div><m.div className="hero-preview" {...enter} transition={{ ...enter.transition, delay: reduced ? 0 : 0.12 }}><LandingPreview onStart={startImport} /></m.div></section>
+        <section id="how-it-works" className="how-it-works" aria-labelledby="steps-heading"><div className="steps-intro"><p className="eyebrow">FROM OPEN TABS TO A CLEAR CHOICE</p><h2 id="steps-heading">Three steps. One confident decision.</h2></div><div className="steps">{[['link', '01', 'Import', 'Paste a listing. We’ll bring in the details.'], ['compare', '02', 'Compare', 'Your contenders, clearly side by side.'], ['spark', '03', 'Decide', 'Choose your priorities. See the trade-offs.']].map(([icon, n, title, text]) => <div key={n}><span className="step-icon"><Icon name={icon} size={24} /></span><div><span className="step-index">{n}</span><h3>{title}</h3><p>{text}</p></div></div>)}</div><div className="landing-note"><Icon name="shield" size={16} /><span>Real seller details. Transparent comparisons. The final call is always yours.</span><button type="button" onClick={startImport}>Start your shortlist <Icon name="arrow" size={16} /></button></div></section>
+      </>}
       {page === 'compare' && <VehicleComparison cars={cars} importForm={importForm} navigate={navigate} removeCar={id => { setCars(previous => previous.filter(car => car.legacyItemId !== id)); setNotice('Car removed. You can import a replacement.'); }} clearCars={() => { setCars([]); setNotice('Comparison cleared.'); }} />}
       {page === 'decide' && <DecisionDashboard cars={cars} mode={mode} setMode={setMode} />}
-    </main><footer><a className="footer-brand" href="#import">Dilemma.</a><span>Made for the road ahead.</span><span className="prototype-label">Seller claims, clearly compared · Refresh clears your shortlist</span></footer>
-  </div>;
+    </m.div></main><footer><a className="footer-brand" href="#import">Dilemma<span>.</span></a><span>A clearer road to your next car.</span><span className="prototype-label">In memory only · Refresh clears your shortlist</span></footer>
+  </div></MotionConfig></LazyMotion>;
 }

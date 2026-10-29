@@ -1,4 +1,5 @@
 import { authenticate, importListing, parseItemUrl } from '../ebay-feasibility.mjs';
+import { decodeVin, validateVin } from '../shared/vin.js';
 
 const MAX_BODY_BYTES = 4096;
 const UPSTREAM_TIMEOUT_MS = 25000; // OAuth + Browse fit inside Vercel's 60-second limit.
@@ -37,11 +38,11 @@ async function readBody(request) {
 }
 
 // Both the local server and Vercel call this stateless handler. No environment-file reads here.
-export function createHandler({ auth = authenticate, importer = importListing } = {}) {
+export function createHandler({ auth = authenticate, importer = importListing, vinDecoder = decodeVin } = {}) {
   return async function handleRequest(request) {
     const url = new URL(request.url);
     if (url.pathname === '/api/health' && request.method === 'GET') return json(200, { ok: true });
-    if (url.pathname !== '/api/import') return json(404, { error: 'Endpoint not found.' });
+    if (!['/api/import', '/api/vehicle-data'].includes(url.pathname)) return json(404, { error: 'Endpoint not found.' });
     if (request.method !== 'POST') return json(405, { error: 'Use POST to import a listing.' }, { Allow: 'POST' });
     const origin = request.headers.get('origin');
     const local = !process.env.VERCEL && ['localhost', '127.0.0.1'].includes(url.hostname) && localOrigins.has(origin);
@@ -54,6 +55,11 @@ export function createHandler({ auth = authenticate, importer = importListing } 
       if (body === null) return json(413, { error: 'The listing URL is too long.' });
       let input;
       try { input = JSON.parse(body); } catch { return json(400, { error: 'Invalid JSON request.' }); }
+      if (url.pathname === '/api/vehicle-data') {
+        const validation = validateVin(input?.vin);
+        if (validation.status !== 'valid') return json(400, { error: validation.reason });
+        return json(200, { vin: await vinDecoder(validation.vin, { signal: request.signal }) });
+      }
       if (typeof input?.url !== 'string' || input.url.length > 2048) return json(400, { error: 'Provide one eBay.ca listing URL.' });
       try { parseItemUrl(input.url); } catch (error) { return json(400, { error: error.message }); }
       const token = await auth({ timeoutMs: UPSTREAM_TIMEOUT_MS, quiet: true });
@@ -66,6 +72,7 @@ export function createHandler({ auth = authenticate, importer = importListing } 
       if (String(car.conditionId) === '1000' || /^new$/i.test(car.condition ?? '')) return json(422, { error: 'This listing is marked New. Please choose a used vehicle.' });
       return json(200, { vehicle: { ...car, description: plainText(car.description) } });
     } catch (error) {
+      if (url.pathname === '/api/vehicle-data') return json(200, { vin: { status: 'unavailable', reason: 'VIN lookup is temporarily unavailable. Seller details remain usable.' } });
       // No listing payloads, credentials, URLs or upstream response bodies in logs/errors.
       const message = String(error.message);
       if (/network\/timeout|TimeoutError|AbortError/.test(message)) return json(504, { error: 'eBay did not respond in time or could not be reached. Please try again.' });
