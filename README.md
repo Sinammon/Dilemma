@@ -4,7 +4,7 @@ A temporary, in-memory eBay.ca used-car comparison for a Grade 12 CS demo. React
 
 ## Decision engine
 
-The recommendation dashboard now ranks up to four cars using adjustable price, age and mileage priorities, with missing-data exclusions and mechanical-warning safeguards. See [DECISION_ENGINE.md](DECISION_ENGINE.md) for the scoring example, three key files, Java comparisons, demonstration steps and review limitations.
+The app now follows Import ? Compare ? Decide, with a dedicated comparison page, mileage-unit evidence and six clickable decision modes. Recommendations use transparent scoring, missing-data exclusions and mechanical-warning safeguards. See [DECISION_ENGINE.md](DECISION_ENGINE.md) for the scoring example, three key files, Java comparisons, demonstration steps and review limitations.
 
 ## Run locally
 

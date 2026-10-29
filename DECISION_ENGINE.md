@@ -1,57 +1,79 @@
-# Decision engine review
+﻿# Dilemma: Import → Compare → Decide
 
-Branch: `codex/decision-engine`. Intended base: `main`. No merge or deployment is part of this change.
+Review branch: `codex/three-stage-experience`. This branch includes the earlier decision-engine commit and the three-stage redesign. `main` is unchanged; no deployment or merge is included.
 
-## What changed
+## Three pages
 
-The original eBay importer, vehicle cards, specifications, descriptions and comparison table remain in place. A dashboard above the shortlist adds three priority sliders, immediate rankings for up to four cars, Best Match explanations, weighted score contributions, missing-data notices, ties and mechanical-warning evidence. Car data and priorities remain only in React memory; refresh clears them. The added jsdom dependency is for tests only.
+- **Import (`#import`)**: paste an eBay.ca used-vehicle URL. A successful import automatically opens Compare. Errors stay on the current page.
+- **Compare (`#compare`)**: up to four images and structured YEAR MAKE MODEL names, asking prices, mileage, transmission, fuel, engine, body type, power, drivetrain, condition, location, VIN and all other returned specifications. Missing fields say **Unknown**. Add another car, remove one and import a replacement, read descriptions and open original eBay links. **Help Me Decide** opens Decide.
+- **Decide (`#decide`)**: six clickable modes update recommendations immediately. See selected vehicles with images, advantages, trade-offs, warnings, score contributions, why other cars rank lower and missing information. Return to Compare to edit the shortlist; the chosen mode is retained.
 
-## Explain it in the pitch
+Hash navigation supports browser Back/Forward without a routing dependency or server changes. React state in App owns the shortlist and selected mode. Refresh clears everything. No database, accounts, saved comparisons, persistent browser storage or new API service was added. The eBay backend, credentials, security headers, importer and deployment configuration are unchanged.
 
-“Dilemma turns a shortlist into a decision based on what matters to you, while making missing information and seller-disclosed concerns visible.”
+## Mileage evidence
 
-For each active measurement, the lowest value scores 100 and the highest scores 0:
+`src/vehicle-data.js` interprets the imported fields without changing the original listing object. It checks explicit structured units, embedded units, units in mileage field names, titles and mileage-related description statements. It recognizes km, kilometres, kilometers, mi and miles. Text evidence must match the original mileage number. Service intervals and warranty distances are excluded. Different explicit odometer statements, conflicting units and conflicting structured values cause **Unit unknown** and exclusion from scoring. A Canadian location never establishes kilometres.
 
-`points = 100 × (highest − car value) / (highest − lowest)`
+The original mileage number and formatting remain visible. Explicit miles are converted to km only inside the calculation, using 1.609344. No mileage number is invented from a description when the structured number is missing. Evidence and reasons are available beside each seller description. Conservative exclusions may reject legitimate dual-unit or historical readings; confirm them with the seller.
 
-Equal values score 50. Multiply each result by its share of the active priorities and add. Scores describe preference fit within this shortlist, not market value, reliability or safety.
+## Deterministic scoring
 
-Example: fictional A costs $10,000 CAD and is 10 years old; B costs $20,000 CAD and is 5 years old. Both have the same explicit mileage. With priorities price 60, age 30, mileage 10:
+| Mode | Configured weights | Caution policy |
+| --- | --- | --- |
+| Best Value | Price 45, age 25, mileage 30 | Mechanical concerns first |
+| Lowest Upfront Cost | Price 100 | Pure asking-price order, prominent warnings; not a purchase endorsement |
+| Everyday Practicality | Age 35, mileage 45, comparable amenities 20 | Mechanical concerns first |
+| Performance | Explicit listed power 100 | Mechanical concerns first; abstain without comparable power |
+| Comfort & Features | Comparable amenities 100 | Mechanical concerns first; abstain without common explicit evidence |
+| Balanced Choice | Price, age and mileage equally | Mechanical concerns first |
 
-| Car | Price | Age | Mileage | Total |
-| --- | --- | --- | --- | --- |
-| A | 100 × 60% | 0 × 30% | 50 × 10% | 65 |
-| B | 0 × 60% | 100 × 30% | 50 × 10% | 35 |
+Within the shortlist, the preferred numeric endpoint scores 100 and the opposite endpoint scores 0. Intermediate values use a straight line. Lower price/age/mileage is preferred; higher listed power or comparable amenity count is preferred. Equal values score 50. Multiply by active weight shares and add.
 
-Changing age to the only active priority makes B win. If A discloses an engine problem, it ranks below B regardless of price, while retaining its preference score and showing the reason. If all cars have detected warnings, no Best Match is endorsed. Scores rounded to two decimals share a rank when tied within the same warning group. Joint winners each receive explanations.
+Example: fictional A costs $10,000 CAD and is ten years old; B costs $20,000 CAD and is five years old. Mileage is equal and explicit. Best Value gives A `100 × .45 + 0 × .25 + 50 × .30 = 60`; B gets `0 × .45 + 100 × .25 + 50 × .30 = 40`. Balanced Choice gives both 50, so they share a rank. If A discloses an engine problem, B ranks first in both modes regardless of A's low price. Lowest Upfront Cost still identifies A as cheapest and prominently warns about its disclosed condition and uncertain additional costs.
 
-Missing data excludes that measurement for every car, then the remaining weights are renormalized. This conservative rule avoids giving unknown values an advantage. If all active data is unusable or all priorities are zero, there is no numerical recommendation. Only explicitly CAD prices are compared. Explicit miles convert by 1.609344; no unit is guessed. Model years outside 1886 through next year, conflicting arrays, numeric ranges and ambiguous numbers are excluded. Next-year models have age zero. A single-car score is provisional.
+If any car lacks a compatible factor, exclude that factor for everyone and renormalize the remaining weights. No usable weighted data means no recommendation. Compare CAD prices only; never guess exchange rates. Age uses structured model year, with next-year models counted as zero. Scores are rounded to two decimals for ties and displayed at that precision. Single-car results are provisional. Scores depend on the shortlist, not the wider market.
 
-## Three files to understand
+Mechanical rules recognize supported English phrases for not running, engine problems, coolant leaks and repairs needed, with limited negation/repair handling. Except in cost mode, flagged cars rank below unflagged cars. If every car is flagged, no Best Match is endorsed. **Sold as is alone is not evidence of mechanical damage.** No warning match proves a car is sound.
 
-1. `src/decision-engine.js`: the calculation and warning rules. Like a Java utility class with static methods, these exported functions take inputs and return results without changing the inputs. Arrays of objects play the role of lists of vehicle records.
-2. `src/DecisionDashboard.jsx`: sliders, ranking and explanations. `useState` holds temporary priorities; its setter tells React to render again. `Number(event.target.value)` converts the slider's string value, similar to parsing a string in Java. `{ ...previous, [key]: value }` copies the old object and replaces one field rather than mutating it.
-3. `src/App.jsx`: the existing importer and shortlist owner. It passes `cars` into the dashboard as a prop, similar to passing an argument into a Java method. The dashboard computes its results from the current cars and priorities each time it renders.
+Performance compares explicit hp/bhp or kW power claims (kW converted to hp); engine and drivetrain names are shown as context, not rated by guesswork. This is a limited power comparison, not an acceleration or handling prediction. Comfort/practicality use eight supported amenity categories only when each car explicitly confirms or denies the amenity. Missing mentions are unknown, never absent. Model or trim names never imply equipment.
 
-`src/styles.css` controls appearance. `decision-engine.test.mjs` checks the pure rules; `decision-dashboard.test.mjs` checks actual React events with mocked imports using fictional cars only.
+## Three files to understand first
 
-## Four-minute demonstration
+1. **`src/App.jsx`**: imports, temporary state and page navigation. `useState` holds a value and a setter that asks React to render again. Props pass values into components, like Java method arguments. Arrays plus `filter` create an updated shortlist rather than mutating the old one.
+2. **`src/vehicle-data.js`**: structured names, specifications, mileage evidence, amenity claims and power parsing. `null` means unknown; JavaScript's `??` supplies a fallback only for null/undefined. Objects act like simple Java records, without a required class declaration.
+3. **`src/decision-engine.js`**: six modes, normalization, weights, ties and warning groups. Exported pure functions resemble static Java utility methods: same input gives the same output when the year is fixed, and input objects are not modified.
 
-1. Import two complete used-car listings and show the preserved comparison table.
-2. Explain the default Best Match and its strengths and trade-offs.
-3. Move the price and age sliders to demonstrate immediate recalculation. Reset priorities.
-4. Show missing mileage units and the “How the scores work” disclosure. Explain that unknown data is excluded.
-5. If a real listing contains a supported mechanical disclosure, show its evidence and ranking group. Otherwise explain the tested fictional example above; do not present synthetic cars as real listings.
+`VehicleComparison.jsx` renders the comparison; `DecisionDashboard.jsx` renders mode choices and explanations. CSS lives in `src/styles.css`.
 
-## Validation and review
+## Run and test
 
-Run `npm test` and `npm run build`. The offline suite covers scoring arithmetic, changed priorities, intermediate values, four-car limits, missing/invalid data, currency and mileage compatibility, ties, empty inputs, mechanical rules, and UI import/remove/clear/reset behavior. Existing importer and HTTP regression tests remain included. No live eBay responses are saved, no new API requests are introduced, and Vercel configuration is unchanged.
+Use Node 24. Run `npm install` once. Keep the existing ignored `.env` with server-side eBay credentials; never add a `VITE_` prefix or commit it.
 
-Review the engine policy and dashboard before merging into `main`. In particular, decide whether excluding incomplete criteria is appropriate for the presentation. The browser automation host was unavailable during this session, so a visual check in a real browser at desktop and phone widths remains a manual review item; DOM interaction tests do not verify pixels. No hosted deployment or fresh live eBay check is claimed.
+In separate terminals:
 
-## Limits to explain honestly
+```powershell
+npm run server
+npm run dev
+```
 
-- Mechanical detection uses supported English phrases in titles, descriptions and specifications. It has limited negation/repair handling and can miss paraphrases, French disclosures or subtle context. It shows evidence for human review; absence of a match never establishes that a car is sound.
-- A warning changes the ranking group, not the score. Cars within each group sort by preference score; this does not estimate the relative severity or cost of different mechanical problems.
-- A car with incomplete data can remove a useful criterion for the entire shortlist. Warnings can still be shown when there is insufficient data to score.
-- Scores change with the shortlist, and seller asking prices may not represent total purchase cost. The engine adds no accident history, reliability rating, repair estimate or independent verification.
+Open http://127.0.0.1:5173. If a server is already running, use it rather than starting another on the same port.
+
+```powershell
+npm test
+npm run build
+```
+
+The offline suite uses fictional vehicles only and includes the existing importer/HTTP/security tests. New tests cover mileage spelling variants, structured units, unmatched service distances, conflicting measurements, Unknown fields, preserved raw values, feature negation, power units, all six modes, numeric examples, ties, mechanical caution versus cost mode, automatic navigation, duplicates, four imports, removal/replacement, mode retention and clearing. No live listing data is saved.
+
+## Four-minute presentation
+
+1. **0:00–0:45** — explain the buyer's dilemma; import a real listing and show automatic Compare navigation.
+2. **0:45–1:45** — add another real listing, compare structured names/specifications, and point out Unknown fields and mileage evidence.
+3. **1:45–3:15** — click Help Me Decide; switch Best Value, Lowest Upfront Cost and Balanced Choice. Explain one score and one trade-off. Show a real disclosure if available; otherwise discuss the fictional tested example honestly.
+4. **3:15–4:00** — show Performance or Comfort handling incomplete evidence; return to Compare, remove a car, and explain that Dilemma never invents missing data.
+
+## Review limits
+
+Text interpretation is deliberately limited and can miss paraphrases, French, complicated negation, historical repairs or unusual mileage formatting. All displayed data remains seller claims, not independent verification. No reliability ratings, accident histories, maintenance costs, fuel economy or repair estimates are fabricated. Sparse listings may make Performance or Comfort inconclusive, and one incomplete car can remove a factor for the whole shortlist.
+
+Automated DOM interaction checks and the production build passed. Browser automation access was unavailable and native Chrome input could not obtain usable geometry, so pixel-level desktop/mobile review remains a manual item. No fresh live eBay quota or Vercel troubleshooting was used in this change.
