@@ -2,6 +2,10 @@
 
 A temporary, in-memory eBay.ca used-car comparison for a Grade 12 CS demo. React + JavaScript + CSS, Vite, and a minimal Node.js API. Import up to four cars, view real photos, compare available fields and specifications, and read seller descriptions as safe plain text.
 
+## Decision engine
+
+The recommendation dashboard now ranks up to four cars using adjustable price, age and mileage priorities, with missing-data exclusions and mechanical-warning safeguards. See [DECISION_ENGINE.md](DECISION_ENGINE.md) for the scoring example, three key files, Java comparisons, demonstration steps and review limitations.
+
 ## Run locally
 
 Use Node.js 24 (also pinned for Vercel in package.json). From this project folder, install dependencies once:
@@ -104,7 +108,7 @@ Vercel may automatically start a Production deployment if main is the tracked pr
 
 Vercel serves / from the Vite dist output and detects /api/import and /api/health from the root api directory. The app uses hash links, so no SPA catch-all rewrite is needed; a catch-all could accidentally hide API errors. Same-origin requests work on production, preview and custom domains. Other origins are rejected; no wildcard CORS is enabled.
 
-vercel.json sets api/import.js to a 60-second maximum. Each eBay call times out after 25 seconds, giving OAuth plus Browse about 50 seconds and leaving room for a JSON error before the function limit. The browser already allows 70 seconds. No background tasks, database, persistent listing caches, accounts or recommendation features are added. All API responses set no-store for browser and CDN caching. Frontend assets can use Vercel's normal static caching. Direct eBay images remain subject to their image host's HTTP caching policy.
+vercel.json sets api/import.js to a 60-second maximum. Each eBay call times out after 25 seconds, giving OAuth plus Browse about 50 seconds and leaving room for a JSON error before the function limit. The browser already allows 70 seconds. No background tasks, database, persistent listing caches or accounts are added. Recommendations are calculated in memory by the frontend. All API responses set no-store for browser and CDN caching. Frontend assets can use Vercel's normal static caching. Direct eBay images remain subject to their image host's HTTP caching policy.
 
 If /api/health is 404, verify Root Directory and that the deployed commit includes api/. If POST /api/import returns HTML, check for an old SPA rewrite or the wrong deployed branch. A 503 authentication message means the Production credentials or eBay permissions need checking; a 504 means an upstream connection/timeout failure. Do not diagnose by logging secrets or complete listing payloads.
 
@@ -123,9 +127,9 @@ React form → POST /api/import → Node validates the URL → eBay OAuth → Pr
 
 React state is similar to an object held in a Java program's memory. Updating it tells React to redraw the affected screen. A refresh clears the entire shortlist. The backend holds each listing only while processing a request; it does not maintain a comparison or listing cache. Responses use Cache-Control: no-store. No database, localStorage, sessionStorage, listing files, persistent caches or full listing logs are used by the app. Photos are loaded directly from eBay's returned HTTPS image URLs; image requests remain subject to the image host's own HTTP caching headers.
 
-The app preserves raw mileage and explicit units, currency, missing fields and seller values. It does not infer year/make/model from titles. Known categories outside Cars & Trucks, New listings, and titles explicitly containing accessories are rejected. Seller categorization can still be inaccurate; confirm complete-vehicle identity with the seller. eBay coverage and listing completeness vary. No rankings, recommendations, chatbot, accounts or saved comparisons are included.
+The app preserves raw mileage and explicit units, currency, missing fields and seller values. It does not infer year/make/model from titles. Known categories outside Cars & Trucks, New listings, and titles explicitly containing accessories are rejected. Seller categorization can still be inaccurate; confirm complete-vehicle identity with the seller. eBay coverage and listing completeness vary. The decision dashboard uses only these imported fields and explicit seller text; no chatbot, accounts or saved comparisons are included.
 
-## Three important files
+## Importer architecture files (see DECISION_ENGINE.md for the three decision-engine files)
 
 1. src/App.jsx: React components, temporary car state, URL form, loading/errors, remove actions and comparison table. Components are functions returning JSX (HTML-like markup). useState is the temporary data React watches.
 2. backend/handler.mjs: the shared HTTP controller. Validates requests, calls eBay, returns safe errors and no-store JSON, and turns seller HTML into inert text. server.mjs adapts local Node requests to it; api/import.js exposes the same handler on Vercel.
