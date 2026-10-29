@@ -1,5 +1,7 @@
 # Dilemma decision engine
 
+The latest missing-data and research changes are documented in [ENRICHMENT.md](ENRICHMENT.md). `rankDecisionMode` now returns `basis` and mode-specific `research` guidance as well as numeric results. Model research never enters numeric factors or populates vehicle specifications. When numeric evidence is insufficient, the UI still presents applicable cited research without choosing a numeric winner. The fictional demo exercises this path without any external API.
+
 The current architecture, source limitations, deterministic worked example, beginner-friendly Java comparisons, four-minute demonstration outline and review checklist are documented in [REVIEW.md](REVIEW.md).
 
 `src/decision-engine.js` exposes pure `rankCars` and `rankDecisionMode` functions. Every comparable factor is normalized relative to the current shortlist, weighted, and added. Missing/conflicting factors are excluded for everyone; remaining weights are renormalized. Ties share the recommendation. Scores describe relative preference fit, not reliability or purchase safety.

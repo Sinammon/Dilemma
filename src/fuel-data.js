@@ -13,12 +13,17 @@ export function matchFuelEconomy(car, rows) {
   if (get('transmission') !== 'CVT' && get('transmissionSpeeds') == null && get('transmissionCode') == null) return none('Transmission speed count or an explicit configuration code is missing.');
   const names = [String(get('model'))];
   if (get('bodyType')) names.push(`${get('model')} ${get('bodyType')}`);
+  // Explicit NRCan naming aliases; body evidence is required, never inferred.
+  if (normalized(get('make')) === 'mazda' && ['3', 'mazda3', 'mazda3sport'].includes(normalized(get('model')))) {
+    if (get('bodyType') === 'Sedan') names.push('Mazda3 4-Door');
+    if (get('bodyType') === 'Hatchback') names.push('Mazda3 5-Door');
+  }
   // Only add configuration tokens explicitly supported by the listing/VIN.
   if (['AWD', '4WD'].includes(get('drivetrain'))) names.push(`${get('model')} ${get('drivetrain')}`, `${get('model')} ${get('drivetrain') === '4WD' ? '4X4' : 'AWD'}`);
   const trim = (car.itemSpecifics || []).find(a => /^trim$/i.test(a.name?.trim()))?.value;
   if (typeof trim === 'string') names.push(`${get('model')} ${trim}`);
   const candidates = rows.filter(row => {
-    const body = row.model.match(/\b(Sedan|Coupe|Hatchback|Wagon|Convertible)\b/i)?.[1];
+    const body = row.model.match(/\b(Sedan|Coupe|Hatchback|Wagon|Convertible)\b/i)?.[1] || (/\b4-Door\b/i.test(row.model) ? 'Sedan' : /\b5-Door\b/i.test(row.model) ? 'Hatchback' : null);
     if (body && get('bodyType') && normalized(body) !== normalized(get('bodyType'))) return false;
     const drive = row.model.match(/\b(AWD|4WD|4X4|FWD|RWD)\b/i)?.[1]?.toUpperCase().replace('4X4', '4WD');
     if (drive && (!get('drivetrain') || drive !== get('drivetrain'))) return false;
@@ -45,7 +50,7 @@ export function annualFuelCost(fuel, { annualKm, pricePerLitre }) {
 
 export async function loadFuelYear(year, { fetcher = fetch, signal } = {}) {
   if (!Number.isInteger(Number(year)) || Number(year) < 1995 || Number(year) > 2026) return [];
-  const response = await fetcher(`/data/fuel/${Number(year)}.json`, { signal, cache: 'no-store' });
+  const response = await fetcher(`/data/fuel/${Number(year)}.json`, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(5000)]) : AbortSignal.timeout(5000), cache: 'no-store' });
   if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) throw new Error('Fuel reference unavailable');
   const data = await response.json();
   if (!Array.isArray(data.columns) || !Array.isArray(data.rows)) throw new Error('Fuel reference invalid');

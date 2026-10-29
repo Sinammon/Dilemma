@@ -3,6 +3,7 @@ import { resolveMileage, numeric as number } from './vehicle-data.js';
 import { extractVehicleSpecs } from './vehicle-specs.js';
 import { sellerText } from './mileage.js';
 import { annualFuelCost } from './fuel-data.js';
+import { researchGuidance } from './model-research.js';
 export const DEFAULT_PRIORITIES = { price: 50, age: 30, mileage: 20 };
 export const CRITERIA = [
   { key: 'price', label: 'Purchase price' },
@@ -81,8 +82,8 @@ export const DECISION_MODES = [
   { id: 'value', title: 'BEST VALUE', description: 'Price, age and mileage, with mechanical caution first.', weights: { price: 45, age: 25, mileage: 30 } },
   { id: 'cost', title: 'AFFORDABILITY', description: 'Asking price and supported fuel-cost scenarios. Always review disclosed concerns.', weights: { price: 80, fuel: 20 } },
   { id: 'practical', title: 'EVERYDAY PRACTICALITY', description: 'Age, mileage, seating needs, body preference, fuel and amenities.', weights: { age: 35, mileage: 45, features: 20, seats: 20, body: 20, fuel: 20 } },
-  { id: 'performance', title: 'PERFORMANCE', description: 'Explicit horsepower and torque, with engine and drivetrain context.', weights: { power: 70, torque: 30 } },
-  { id: 'comfort', title: 'COMFORT & FEATURES', description: 'More documented amenities. Unknown equipment stays unknown.', weights: { features: 100 } },
+  { id: 'performance', title: 'PERFORMANCE', description: 'Supported power and torque, plus sourced model driving impressions.', weights: { power: 70, torque: 30 } },
+  { id: 'comfort', title: 'COMFORT & FEATURES', description: 'Reported amenities and sourced model ride-comfort context.', weights: { features: 100 } },
   { id: 'balanced', title: 'BALANCED CHOICE', description: 'Price, age and mileage, plus supported fuel, seating, amenities and power.', weights: { price: 1, age: 1, mileage: 1, fuel: 0.6, features: 0.6, seats: 0.3, power: 0.3 } },
 ];
 export const DEFAULT_SCENARIO = { annualKm: 15000, pricePerLitre: 1.70, minSeats: 5, bodyType: '' };
@@ -107,7 +108,20 @@ export function rankDecisionMode(cars, modeId, year = new Date().getFullYear(), 
         fuel: sameFuel ? annualFuelCost(car.enrichment.fuel, scenario) : null };
     },
   });
-  return { ...result, mode, commonFeatures, scenario,
+  const research = cars.map(car => {
+    const guidance = researchGuidance(car, mode.id);
+    const caution = detectWarnings(car).length > 0;
+    return { car, guidance, caution, worthTestDriving: !caution && ['comfort', 'practical', 'performance'].includes(mode.id) && guidance.claims.some(c => c.tone === 'positive') };
+  });
+  for (const entry of result.ranked) {
+    const specs = vehicleSpecs[cars.indexOf(entry.car)].specs;
+    for (const factor of entry.breakdown) {
+      const field = { age: 'year', power: 'horsepower', torque: 'torque', seats: 'seats', body: 'bodyType' }[factor.key];
+      factor.evidenceLabel = factor.key === 'fuel' ? 'NRCan configuration reference + your scenario' : field ? specs[field].status === 'vin-record' ? 'NHTSA original VIN record' : specs[field].status === 'corroborated' ? 'Seller claim + NHTSA VIN record' : 'Seller-reported' : 'Seller-reported';
+    }
+  }
+  return { ...result, mode, commonFeatures, scenario, research,
+    basis: result.totalWeight ? 'supported-specs' : research.some(e => e.guidance.claims.length) ? 'model-research-only' : 'insufficient',
     limitation: mode.id === 'performance' ? 'Ranks comparable explicit horsepower and torque, not acceleration or handling. Larger engines, AWD and automatic transmissions are not automatically better. Engine configuration and drivetrain are context; missing power cannot be invented.'
       : mode.id === 'comfort' ? 'Counts explicitly documented working amenities. A lower count can mean less documentation, not fewer installed features. Unknown and conflicting equipment is never called absent. This is a documentation comparison, not a ride-comfort rating.'
         : mode.id === 'practical' ? 'Seating and body scores reflect your stated needs. Age, comparable mileage, documented amenities and matched fuel data are weighted only when everyone has evidence.'

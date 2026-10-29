@@ -6,6 +6,7 @@ import VehicleComparison from './VehicleComparison.jsx';
 import LandingPreview from './LandingPreview.jsx';
 import Icon from './Icons.jsx';
 import { enrichVehicle } from './enrichment.js';
+import { makeDemoCars } from './demo-cars.js';
 
 const route = () => ['compare', 'decide'].includes(window.location.hash.slice(1)) ? window.location.hash.slice(1) : 'import';
 export default function App() {
@@ -41,6 +42,23 @@ export default function App() {
     navigate('import');
     requestAnimationFrame(() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: reduced ? 'instant' : 'smooth', block: 'center' }));
   }
+  function enrichImported(imported) {
+    const controller = new AbortController();
+    enrichmentTasks.current.add(controller);
+    void enrichVehicle(imported, { signal: controller.signal }).then(enrichment => {
+      if (!controller.signal.aborted) setCars(previous => previous.map(car => car === imported ? { ...car, enrichment } : car));
+    }).catch(() => {
+      if (!controller.signal.aborted) setCars(previous => previous.map(car => car === imported ? { ...car, enrichment: { status: 'unavailable' } } : car));
+    }).finally(() => enrichmentTasks.current.delete(controller));
+  }
+  function loadDemo() {
+    if (cars.length || loading) return;
+    const demo = makeDemoCars().map(car => ({ ...car, enrichment: { status: 'loading' } }));
+    setCars(demo);
+    demo.forEach(enrichImported);
+    setError(''); setNotice('Fictional demo loaded. No eBay request was made.');
+    navigate('compare');
+  }
   async function handleSubmit(event) {
     event.preventDefault();
     if (loading || cars.length >= 4) return;
@@ -58,13 +76,7 @@ export default function App() {
       const data = await readImportResponse(response);
       const imported = { ...data.vehicle, enrichment: { status: 'loading' } };
       setCars(previous => previous.some(car => car.legacyItemId === imported.legacyItemId) ? previous : [...previous, imported].slice(0, 4));
-      const controller = new AbortController();
-      enrichmentTasks.current.add(controller);
-      void enrichVehicle(imported, { signal: controller.signal }).then(enrichment => {
-        if (!controller.signal.aborted) setCars(previous => previous.map(car => car === imported ? { ...car, enrichment } : car));
-      }).catch(() => {
-        if (!controller.signal.aborted) setCars(previous => previous.map(car => car === imported ? { ...car, enrichment: { status: 'unavailable' } } : car));
-      }).finally(() => enrichmentTasks.current.delete(controller));
+      enrichImported(imported);
       setUrl(''); setNotice('Listing imported. Compare the available seller details below.');
       navigate('compare');
     } catch (err) { setError(err.name === 'TimeoutError' ? 'eBay took too long to respond. Please try again.' : err instanceof TypeError ? 'Could not connect to Dilemma. Please check your connection and try again.' : err.message); }
@@ -74,6 +86,7 @@ export default function App() {
     <label htmlFor="listing-url">{cars.length ? 'Add another car to your shortlist' : 'Your next car starts with a link'}</label>
     <div className="input-row"><Icon name="link" size={22} /><input id="listing-url" type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="Paste an eBay.ca car link…" required maxLength={2048} disabled={loading || cars.length >= 4} aria-invalid={!!error} aria-describedby="input-note import-error" /><button disabled={loading || cars.length >= 4} type="submit">{loading && <span className="loading-spinner" aria-hidden="true" />}{loading ? 'Importing…' : cars.length >= 4 ? 'Shortlist full' : 'Import car'}{!loading && cars.length < 4 && <Icon name="arrow" size={18} />}</button></div>
     <p id="input-note" className="input-note"><Icon name="check" size={14} /> No account needed <span>·</span> {cars.length ? `${cars.length}/4 cars added` : 'Compare up to 4 cars'}</p><p id="import-error" role="alert" className="error-message">{error}</p><p role="status" className="form-message">{loading ? 'Connecting to eBay and bringing in listing details…' : notice}</p>
+    {!cars.length && <div className="demo-entry"><button type="button" className="text-button" onClick={loadDemo} disabled={loading}>Try fictional demo</button><p>Three example cars, real sourced research. Works without eBay credentials or internet research.</p></div>}
   </form>;
   const enter = { initial: { opacity: reduced ? 1 : 0, y: reduced ? 0 : 14 }, animate: { opacity: 1, y: 0 }, transition: { duration: reduced ? 0 : 0.5, ease: [0.22, 1, 0.36, 1] } };
   return <LazyMotion features={domAnimation} strict><MotionConfig reducedMotion="user"><div className={`site-shell ${page === 'import' ? 'landing-shell' : ''}`}>

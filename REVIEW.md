@@ -1,5 +1,7 @@
 # Dilemma: vehicle evidence and recommendations
 
+Latest update: [ENRICHMENT.md](ENRICHMENT.md) documents the compact comparison UI, scoped/source-checked model library, qualitative decision fallback and explicit offline demo. The numeric scoring and source limits below continue to apply; missing power or equipment can now produce useful model context without a vehicle-level score.
+
 Review branch: `codex/evidence-based-recommendations`. Do not merge into main until reviewed. This branch includes the earlier landing-page, image and mileage changes from this conversation. No deployment work is included.
 
 ## What changed

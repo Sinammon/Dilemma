@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { createServer } from 'vite';
+import { readFile } from 'node:fs/promises';
 
 test('three-page journey preserves imports, supports all modes, removes and replaces cars, and handles unknown data', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost', pretendToBeVisual: true });
@@ -87,7 +88,10 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     assert.equal(document.querySelector('.vehicle-image img').getAttribute('src'), 'https://images.example.test/rear.jpg');
     await act(async () => document.querySelector('.photo-next').click());
     assert.equal(document.querySelector('.vehicle-image img').getAttribute('src'), 'https://images.example.test/front.jpg');
-    assert.match(document.querySelector('tbody').textContent, /TransmissionUnknownFuel typeUnknown/);
+    assert.equal(document.querySelectorAll('table:first-of-type tbody tr').length >= 2, true);
+    assert.equal(document.querySelectorAll('.table-scroll')[0].querySelectorAll('tbody tr').length, 2, 'fully unknown specification rows are omitted');
+    assert.match(document.querySelector('.shared-gaps').textContent, /Transmission/);
+    assert.equal(document.querySelectorAll('.feature-evidence > div').length, 1, 'only explicit amenity claims appear');
     assert.equal(document.querySelector('.mode-grid'), null);
     await add('222222222222', 20000, 2021, 'No heated seats.', null);
     assert.equal(document.querySelectorAll('.car-card').length, 2);
@@ -174,6 +178,37 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     });
     assert.equal(document.querySelectorAll('.car-card').length, 1);
     assert.equal(document.querySelector('.vehicle-name').textContent, '2020 Example Replacement');
+    // Demo is explicit, uses only public bundled reference files, and supports sparse data.
+    await act(async () => document.querySelector('.section-heading button').click());
+    const demoRequests = [];
+    globalThis.fetch = async url => {
+      demoRequests.push(url);
+      assert.match(url, /^\/data\/fuel\//);
+      return Response.json(JSON.parse(await readFile(`public${url}`, 'utf8')));
+    };
+    await act(async () => {
+      document.querySelector('.demo-entry button').click();
+      await new Promise(resolve => setTimeout(resolve, 100));
+    });
+    assert.equal(document.querySelectorAll('.car-card').length, 3);
+    assert.equal(demoRequests.length, 3);
+    assert.match(document.querySelector('.demo-notice').textContent, /fictional/);
+    assert.match(document.querySelector('.source-status-grid').textContent, /Documented original specifications.*Seller-reported claims.*Typical model information.*Still to verify on this car/s);
+    assert.ok(document.querySelector('.model-research a[href="https://www.caranddriver.com/honda/civic-2018"]'));
+    assert.equal(document.querySelector('.table-scroll').querySelectorAll('tbody tr').length, 7);
+    await go('decide');
+    await act(async () => document.querySelectorAll('.mode-card')[3].click());
+    assert.equal(document.querySelector('.best-match'), null);
+    assert.match(document.querySelector('.result-banner').textContent, /sourced model guidance/);
+    assert.equal(document.querySelectorAll('.research-guidance-grid > article').length, 3);
+    assert.equal(document.querySelectorAll('.research-next-step').length, 2);
+    assert.match(document.querySelector('.decision-research').textContent, /No live web research integration/);
+    assert.equal(document.querySelectorAll('.ranking-score')[0].textContent, 'Unscored');
+    await act(async () => document.querySelectorAll('.mode-card')[4].click());
+    assert.match(document.querySelector('.decision-research').textContent, /sound isolation/);
+    await act(async () => document.querySelectorAll('.mode-card')[0].click());
+    assert.ok(document.querySelector('.best-match'));
+    assert.match(document.querySelector('.score-parts').textContent, /Seller-reported/);
   } finally {
     await act(async () => root.unmount());
     await new Promise(resolve => setTimeout(resolve, 50));
