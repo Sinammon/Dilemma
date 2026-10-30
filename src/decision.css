@@ -1,0 +1,166 @@
+.decision-shell { max-width: 1490px; padding: 0 5.8%; position: relative; isolation: isolate; }
+.decision-shell::before { content: ''; position: absolute; z-index: -1; inset: 78px 0 0; pointer-events: none; background: linear-gradient(145deg,transparent 0 44%,#eaf3ff77 44% 53%,transparent 53% 66%,#eaf3ff66 66% 73%,transparent 73%),radial-gradient(ellipse at 90% 20%,#eef5ffbb,transparent 70%); }
+.decision-shell .site-header { padding: 20px 0; }
+.decision-shell .brand { font-size: 29px; }
+.decision-shell .brand-mark { width: 45px; height: 45px; font-size: 34px; border-radius: 13px; }
+.decision-shell nav { gap: 30px; }
+.decision-shell .decision-nav { display: flex; gap: 30px; font-size: 14px; }
+.decision-shell .decision-nav a { padding: 12px 0; color: #526b99; }
+.decision-shell .decision-nav a[aria-current='page'] { color: #225aff; border-bottom: 2px solid #225aff; }
+.decision-shell .nav-button { display: none; }
+.decision-page { padding-top: 36px; }
+.decision-page .decision-heading { align-items: flex-start; gap: 40px; margin-bottom: 34px; }
+.decision-page .back-link { margin-bottom: 14px; font-weight: 500; font-size: 14px; }
+.decision-page h1 { color: #0c163d; font-size: clamp(31px,3.3vw,47px); letter-spacing: -1.9px; margin: 7px 0 10px; line-height: 1.2; }
+.decision-page .page-intro { font-size: 16px; max-width: 690px; margin: 0; line-height: 1.65; }
+.decision-page .decision-progress { display: flex; flex: 0 0 330px; justify-content: space-between; margin-top: 15px; gap: 20px; }
+.decision-progress a { display: flex; flex-direction: column; align-items: center; gap: 10px; position: relative; color: #5e76a2; font-size: 15px; }
+.decision-progress a:not(:last-child)::after { content: ''; position: absolute; left: calc(50% + 36px); top: 22px; width: 65px; height: 1px; background: #cfdffd; }
+.decision-progress a > span { display: grid; place-items: center; height: 45px; width: 45px; border: 2px solid #cfddfb; border-radius: 50%; color: #245bff; font-size: 18px; background: #fff9; }
+.decision-progress a[aria-current='step'] { color: #245bff; font-weight: 600; }
+.decision-progress a[aria-current='step'] > span { background: #245bff; border-color: #fff; color: #fff; box-shadow: 0 4px 15px #245bff3b; }
+.decision-page .mode-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 6px; border: 1px solid #e0e9fc; background: #ffffffdf; padding: 8px; border-radius: 17px; margin-bottom: 20px; box-shadow: 0 3px 10px #245bff05; }
+.decision-page .mode-card { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 20px; padding: 17px 10px; min-height: 58px; border: 1px solid #dce6fc; border-radius: 12px; background: #fff8; color: #536d9d; text-align: center; }
+.decision-page .mode-card strong { font-size: 16px; font-weight: 600; letter-spacing: -.25px; }
+.decision-page .mode-card.selected { padding: 17px 10px; border: 1px solid #245bff; box-shadow: 0 0 0 2px #eaf0ff; color: #245bff; background: linear-gradient(110deg,#edf3ff,#eaf0ff88); }
+.decision-page .mode-card:hover { background: #edf3ff; transform: none; }
+.decision-demo-note, .decision-status { font-size: 11px; color: #6a7da0; margin: 8px 5px 12px; }
+.decision-match, .decision-page .best-match { position: relative; display: grid; grid-template-columns: minmax(0,.83fr) minmax(0,1.17fr); gap: 10px 30px; padding: 28px; border: 1px solid #dfe8fa; border-radius: 23px; background: #fff; overflow: visible; box-shadow: 0 15px 40px #3861a007; }
+.decision-photo { min-width: 0; }
+.decision-match .vehicle-image { height: 250px; min-height: 0; border-radius: 12px; background: #f1f5fb; overflow: hidden; border: 0; }
+.decision-match .vehicle-image img { width: 100%; height: 100%; object-fit: contain; }
+.decision-match .source-pill { font-size: 9px; padding: 4px 7px; background: #ffffffeb; }
+.decision-match .image-placeholder { height: 100%; min-height: 150px; font-size: 13px; color: #7187a9; }
+.view-photo { width: 100%; border-radius: 0 0 11px 11px; min-height: 43px; padding: 10px; font-size: 12px; font-weight: 400; color: #245bff; background: #f2f6ff; border: 0; margin-top: 4px; }
+.view-photo:hover { background: #eaf1ff; transform: none; box-shadow: none; }
+.decision-match-copy { min-width: 0; }
+.match-topline { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.decision-match-copy .eyebrow { color: #245bff; font-size: 11px; letter-spacing: 1.6px; margin: 5px 0 8px; }
+.recommendation-badge { display: inline-flex; align-items: center; gap: 8px; background: #eaf1ff; color: #245bff; padding: 10px 13px; border-radius: 16px; font-size: 11px; white-space: nowrap; }
+.recommendation-badge.neutral { color: #687a99; background: #f0f4fa; }
+.recommendation-badge.caution { color: #94631d; background: #fff4df; }
+.decision-match-copy h2 { margin: 0 0 11px; font-size: clamp(24px,2.45vw,34px); color: #0c163d; letter-spacing: -.9px; line-height: 1.25; overflow-wrap: anywhere; }
+.decision-reason { margin: 0 0 15px; font-size: 15px; line-height: 1.6; color: #60769d; }
+.decision-reasons { padding: 0; margin: 0; list-style: none; display: grid; gap: 10px; }
+.decision-reasons li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.45; color: #526c97; }
+.decision-reasons li > svg { color: #245bff; flex-shrink: 0; margin-top: 1px; }
+.decision-reasons small { display: block; font-size: 10px; color: #7b8ca7; margin-top: 2px; }
+.decision-reasons small a { color: #416ab3; text-decoration: underline; text-underline-offset: 2px; }
+.decision-reasons .model-context { font-size: 12px; }
+.decision-tradeoff { display: flex; align-items: flex-start; gap: 12px; border-top: 1px solid #dfe8fa; margin-top: 17px; padding-top: 14px; color: #61769c; font-size: 13px; line-height: 1.6; }
+.decision-tradeoff > svg { flex-shrink: 0; color: #ef9400; }
+.decision-tradeoff b { white-space: nowrap; color: #dc8b00; font-weight: 500; }
+.decision-match .warning-details { font-size: 11px; margin: 15px 0 0; padding: 12px; line-height: 1.6; }
+.decision-match .warning-details p { margin: 4px 0; overflow-wrap: anywhere; }
+.decision-key-facts { grid-column: 1/-1; display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); margin-top: 0; padding: 20px 0; border-radius: 15px; background: #f4f7fe; }
+.decision-key-facts > div { display: flex; align-items: center; gap: 16px; padding: 0 22px; min-width: 0; }
+.decision-key-facts > div + div { border-left: 1px solid #d7e3fd; }
+.fact-icon { display: grid; place-items: center; width: 51px; height: 51px; border-radius: 50%; background: #eaf1ff; color: #245bff; flex-shrink: 0; }
+.decision-key-facts > div > div { min-width: 0; }
+.decision-key-facts span:not(.fact-icon) { display: block; font-size: 12px; color: #6c80a5; }
+.decision-key-facts strong { display: block; font-size: 14px; font-weight: 500; line-height: 1.5; color: #334e7d; margin-top: 3px; }
+.decision-key-facts small { display: block; font-size: 9px; line-height: 1.5; color: #7c8ca9; margin-top: 3px; }
+.decision-arrow { position: absolute; top: 37%; display: grid; place-items: center; width: 49px; height: 56px; border-radius: 50%; padding: 0; color: #0c163d; background: #fff; border: 1px solid #e5edfd; box-shadow: 0 6px 20px #355c9708; }
+.decision-arrow:hover { background: #f3f7ff; }
+.decision-arrow.previous { left: -25px; }
+.decision-arrow.previous svg { rotate: 180deg; }
+.decision-arrow.next { right: -25px; }
+.decision-card-foot { grid-column: 1/-1; display: flex; align-items: center; justify-content: space-between; font-size: 10px; color: #8391aa; margin: 0; gap: 15px; }
+.decision-card-foot .source-link, .decision-card-foot .car-meta { font-size: 10px; margin: 0; }
+.decision-actions { display: flex; justify-content: center; margin: 22px 0 28px; }
+.decision-primary { display: inline-flex; align-items: center; gap: 15px; padding: 18px 40px; font-size: 18px; font-weight: 600; border-radius: 15px; background: #245bff; color: white; box-shadow: 0 7px 20px #245bff16; }
+.decision-primary:hover { background: #174ee5; }
+.decision-details { border: 1px solid #e0e8f8; background: #ffffffa8; border-radius: 12px; margin: 12px 0; padding: 0; color: #667a9c; font-size: 12px; line-height: 1.7; }
+.decision-details > summary { padding: 15px 18px; font-size: 12px; color: #4a6593; font-weight: 500; cursor: pointer; }
+.decision-detail-content { padding: 0 20px 20px; }
+.recall-research { border-top: 1px solid #dfe6f2; margin-top: 15px; padding-top: 8px; }
+.recall-research > summary { cursor: pointer; font-weight: 600; }
+.recall-research button { font-size: 11px; padding: 9px 13px; margin: 6px 0; }
+.recall-research details { padding: 10px 0; border-bottom: 1px solid #e4eaf5; font-size: 11px; }
+.recall-research a { color: #2458a2; text-decoration: underline; font-size: 11px; }
+.decision-details > p { padding: 0 18px; font-size: 11px; }
+.decision-details .scenario-fields { padding: 0 18px; }
+.secondary-modes { display: flex; gap: 10px; margin: 0 18px 18px; }
+.decision-page .secondary-modes .mode-card { min-height: 44px; flex: 1; font-size: 11px; padding: 12px; }
+.decision-page .secondary-modes .mode-card strong { font-size: 11px; }
+.decision-footnote { text-align: center; font-size: 10px; color: #8090aa; margin-top: 20px; }
+.decision-empty.result-banner { text-align: center; padding: 60px 20px; background: #fff; color: #152344; border: 1px solid #e0e8f8; }
+.decision-empty.result-banner p { color: #71809e; }
+.decision-empty .primary-link { color: #fff; display: inline-flex; align-items: center; gap: 12px; margin-top: 15px; }
+.decision-photo-dialog { border: 0; border-radius: 15px; padding: 15px; width: min(90vw,1000px); background: #fff; }
+.decision-photo-dialog::backdrop { background: #101d3ec9; }
+.decision-photo-dialog > button { display: flex; margin-left: auto; margin-bottom: 12px; }
+.decision-photo-dialog .vehicle-image { height: min(65vh,650px); }
+.decision-photo-dialog .vehicle-image img { object-fit: contain; }
+@media (max-width: 1100px) {
+  .decision-page .decision-progress { flex-basis: 250px; }
+  .decision-progress a:not(:last-child)::after { width: 40px; left: calc(50% + 28px); }
+  .decision-page .mode-card { gap: 12px; }
+  .decision-match, .decision-page .best-match { padding: 23px; gap: 15px 22px; }
+  .recommendation-badge { font-size: 10px; padding: 8px; }
+  .match-topline { align-items: flex-start; }
+  .decision-match-copy .eyebrow { font-size: 9px; }
+  .decision-key-facts > div { gap: 10px; padding: 0 13px; }
+  .fact-icon { width: 40px; height: 40px; }
+}
+@media (max-width: 850px) {
+  .decision-page .decision-heading { flex-direction: column; gap: 20px; }
+  .decision-page .decision-progress { flex: none; width: 100%; max-width: 350px; margin: 0; align-self: center; }
+  .decision-progress a:not(:last-child)::after { width: 70px; }
+  .decision-match, .decision-page .best-match { grid-template-columns: 1fr; }
+  .decision-match .vehicle-image { height: 285px; }
+  .decision-match-copy h2 { font-size: 28px; }
+  .decision-key-facts { margin-top: 7px; grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .decision-key-facts > div { display: block; }
+  .decision-key-facts .fact-icon { margin-bottom: 10px; }
+  .decision-key-facts > div:only-child { grid-column: 1/-1; }
+}
+@media (max-width: 550px) {
+  .decision-shell { padding: 0 24px; }
+  .decision-shell .site-header { flex-wrap: wrap; padding: 20px 0 10px; gap: 10px; }
+  .decision-shell .brand { font-size: 24px; }
+  .decision-shell .brand-mark { width: 36px; height: 36px; font-size: 27px; }
+  .decision-shell .site-header nav { width: 100%; justify-content: space-between; gap: 12px; }
+  .decision-shell .site-header .how-link { display: inline-block; font-size: 11px; }
+  .decision-shell .decision-nav { gap: 19px; font-size: 11px; }
+  .decision-page { padding-top: 25px; }
+  .decision-page .back-link { font-size: 12px; }
+  .decision-page h1 { font-size: 31px; letter-spacing: -1.4px; }
+  .decision-page .page-intro { font-size: 13px; }
+  .decision-page .decision-heading { margin-bottom: 23px; gap: 22px; }
+  .decision-page .decision-progress { max-width: 275px; }
+  .decision-progress a { font-size: 12px; gap: 6px; }
+  .decision-progress a > span { height: 35px; width: 35px; font-size: 14px; }
+  .decision-progress a:not(:last-child)::after { top: 17px; width: 50px; left: calc(50% + 28px); }
+  .decision-page .mode-grid { grid-template-columns: repeat(2,minmax(0,1fr)); padding: 6px; gap: 6px; border-radius: 14px; }
+  .decision-page .mode-card, .decision-page .mode-card.selected { min-height: 48px; padding: 10px 6px; gap: 10px; }
+  .decision-page .mode-card svg { width: 21px; }
+  .decision-page .mode-card strong { font-size: 12px; }
+  .decision-match, .decision-page .best-match { padding: 16px; border-radius: 19px; gap: 15px; }
+  .decision-match .vehicle-image { height: 200px; }
+  .decision-match-copy h2 { font-size: 25px; margin-top: 7px; }
+  .match-topline { gap: 4px; }
+  .recommendation-badge { font-size: 9px; gap: 5px; padding: 8px; border-radius: 10px; }
+  .recommendation-badge svg { width: 14px; }
+  .decision-match-copy .eyebrow { font-size: 8px; letter-spacing: 1px; }
+  .decision-reason { font-size: 13px; }
+  .decision-reasons li { font-size: 12px; gap: 8px; }
+  .decision-reasons small { font-size: 9px; }
+  .decision-reasons .model-context { font-size: 11px; }
+  .decision-tradeoff { flex-wrap: wrap; gap: 8px; font-size: 12px; }
+  .decision-tradeoff > span { flex-basis: 100%; }
+  .decision-key-facts { grid-template-columns: 1fr; padding: 14px; gap: 14px; }
+  .decision-key-facts > div { display: flex; align-items: center; padding: 0; }
+  .decision-key-facts > div + div { border-left: 0; border-top: 1px solid #dfe8fb; padding-top: 14px; }
+  .decision-key-facts .fact-icon { margin: 0; }
+  .decision-key-facts strong { font-size: 13px; }
+  .decision-arrow { width: 32px; height: 44px; top: 120px; }
+  .decision-arrow.previous { left: -17px; }
+  .decision-arrow.next { right: -17px; }
+  .decision-card-foot { font-size: 9px; }
+  .decision-card-foot .source-link, .decision-card-foot .car-meta { font-size: 9px; }
+  .decision-primary { font-size: 15px; padding: 16px 26px; border-radius: 13px; }
+  .decision-details > summary { font-size: 11px; }
+  .decision-detail-content { padding: 0 12px 12px; }
+  .secondary-modes { flex-direction: column; }
+}

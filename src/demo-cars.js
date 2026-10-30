@@ -3,7 +3,7 @@ export function makeDemoCars() {
   const make = (id, year, brand, model, price, km, specifics) => ({
     demo: true, legacyItemId: `demo-${id}`, title: `Fictional demo: ${year} ${brand} ${model}`,
     year: String(year), make: brand, model, priceCAD: { value: String(price), currency: 'CAD' },
-    mileage: { raw: String(km), unit: 'km' }, images: [], vin: null,
+    mileage: { raw: String(km), unit: 'km' }, images: [`/images/preview/${id === 'mazda' ? 'mazda3' : id}.jpg`], vin: null,
     description: 'Fictional demo input. Condition, service history and equipment have not been verified. No horsepower or comfort equipment is specified.',
     itemSpecifics: Object.entries(specifics).map(([name, value]) => ({ name, value })),
   });

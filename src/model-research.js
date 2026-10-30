@@ -2,7 +2,7 @@ import { MODEL_PROFILES } from './model-profiles.js';
 import { extractVehicleSpecs, normalized } from './vehicle-specs.js';
 
 export const RESEARCH_CATEGORIES = { strengths: 'Strengths', issues: 'Documented issues to investigate', comfort: 'Comfort', practicality: 'Practicality', performance: 'Performance' };
-export const RESEARCH_METHOD = 'Curated reference library, reviewed 29 October 2026. No live web research integration is connected. Uncovered models receive no generated claims.';
+export const RESEARCH_METHOD = 'Reviewed model library, checked 29 October 2026. General AI web research is not connected. The optional NHTSA lookup retrieves official US recall campaigns. Uncovered models receive no generated claims.';
 export const RESEARCH_LIMIT = 'Model-level information only. Reviews describe typical or tested configurations, not this car. Equipment, condition, accident history, maintenance and campaign completion need individual verification. Bulletins and recalls do not measure how common a failure is.';
 
 // Citation metadata is required, but human source review remains necessary to verify support.

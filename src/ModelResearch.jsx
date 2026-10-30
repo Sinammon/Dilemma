@@ -1,6 +1,7 @@
 import React from 'react';
 import { researchForCar, RESEARCH_CATEGORIES, RESEARCH_METHOD, RESEARCH_LIMIT } from './model-research.js';
 import { vehicleName } from './vehicle-data.js';
+import RecallResearch from './RecallResearch.jsx';
 
 export function ResearchClaim({ claim }) {
   return <div className={`research-claim ${claim.tone}`}><p>{claim.text}</p><div className="research-citations">{claim.sources.map(source => <a key={source.id} href={source.url} target="_blank" rel="noopener noreferrer" title={`${source.title} · ${source.locator} · Reviewed ${source.reviewed}`}>{source.publisher} · {source.kind} ↗</a>)}</div></div>;
@@ -28,6 +29,7 @@ export function DecisionResearch({ result }) {
       {caution && <p className="research-next-step"><strong>Resolve listing concerns first.</strong> Model reputation does not override disclosed condition or identity issues.</p>}
       {guidance.checks.filter(c => !guidance.claims.some(item => item.id === c.id)).map(claim => <ResearchClaim key={claim.id} claim={claim} />)}
       <ModelResearch car={car} />
+      <RecallResearch key={car.legacyItemId} car={car} />
     </article>)}</div><p className="evidence-legend">{RESEARCH_LIMIT}</p>
   </section>;
 }

@@ -28,23 +28,21 @@ test('three-page journey preserves imports, supports all modes, removes and repl
   try {
     const { default: App } = await vite.ssrLoadModule('/src/App.jsx');
     await act(async () => root.render(React.createElement(App)));
-    assert.match(document.querySelector('h1').textContent, /Start deciding/);
+    assert.match(document.querySelector('h1').textContent, /Find the right car/);
     assert.equal(document.querySelector('.mode-grid'), null);
-    assert.equal(document.querySelectorAll('.sample-car').length, 3);
+    assert.equal(document.querySelectorAll('.preview-vehicle').length, 4);
     assert.equal(document.querySelectorAll('.car-card').length, 0);
-    assert.equal(document.querySelector('.carousel-toggle').disabled, true);
-    await act(async () => document.querySelector('.carousel-next').click());
-    assert.equal(document.querySelector('.sample-car[aria-hidden="false"] h3').textContent, 'Toyota Corolla');
-    await act(async () => document.querySelector('.preview-advance').click());
-    assert.match(document.querySelector('.preview-comparison').textContent, /Civic.*Corolla.*Mazda3/);
-    await act(async () => document.querySelector('.preview-advance').click());
-    assert.equal(document.querySelector('.sample-match h3').textContent, '2017 Mazda3');
-    await act(async () => document.querySelectorAll('.sample-priorities button')[1].click());
-    assert.equal(document.querySelector('.sample-match h3').textContent, '2019 Toyota Corolla');
-    await act(async () => {
-      document.querySelector('.preview-advance').click();
-      await new Promise(resolve => setTimeout(resolve, 40));
+    const clickPreview = async selector => act(async () => {
+      document.querySelector(selector).click();
+      await new Promise(resolve => setTimeout(resolve, 50));
     });
+    await clickPreview('.preview-advance');
+    assert.match(document.querySelector('.showcase-comparison').textContent, /Civic.*Corolla.*Mazda3/);
+    await clickPreview('.preview-advance');
+    assert.equal(document.querySelector('.preview-match h3').textContent, '2018 Honda Civic');
+    await clickPreview('.sample-priorities button:nth-child(2)');
+    assert.equal(document.querySelector('.preview-match h3').textContent, '2017 Mazda3');
+    await clickPreview('.preview-advance');
     assert.equal(document.activeElement.id, 'listing-url');
     assert.equal(document.querySelectorAll('.car-card').length, 0, 'sample data never enters the real shortlist');
     const change = async (selector, value) => {
@@ -112,26 +110,27 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     assert.equal(window.location.hash, '#decide', 'skip navigation preserves the current stage');
     assert.equal(document.activeElement.id, 'main-content');
     assert.equal(document.querySelectorAll('input[type="range"]').length, 0);
+    assert.equal(document.querySelectorAll('.mode-grid .mode-card').length, 4);
     assert.equal(document.querySelectorAll('.mode-card').length, 6);
     assert.equal(document.querySelector('.best-match h2').textContent, '2016 Example 1');
-    await act(async () => document.querySelectorAll('.mode-card')[2].click());
+    await act(async () => document.querySelector('.mode-card[data-mode="practical"]').click());
     assert.equal(document.querySelector('.best-match h2').textContent, '2021 Example 2');
-    await act(async () => document.querySelectorAll('.mode-card')[3].click());
-    assert.equal(document.querySelector('.best-match'), null);
-    assert.match(document.querySelector('.result-banner').textContent, /trustworthy performance recommendation cannot be made/);
-    await act(async () => document.querySelectorAll('.mode-card')[4].click());
+    await act(async () => document.querySelector('.mode-card[data-mode="performance"]').click());
+    assert.equal(document.querySelector('.decision-match').dataset.basis, 'starting-point');
+    assert.match(document.querySelector('.decision-reason').textContent, /starting point/);
+    await act(async () => document.querySelector('.mode-card[data-mode="comfort"]').click());
     assert.equal(document.querySelector('.best-match h2').textContent, '2016 Example 1');
     await go('compare');
     await add('333333333333', 100, 2025, 'Engine problems. Coolant leak. Not running.');
     await go('decide');
-    await act(async () => document.querySelectorAll('.mode-card')[1].click());
+    await act(async () => document.querySelector('.mode-card[data-mode="cost"]').click());
     assert.equal(document.querySelector('.best-match h2').textContent, '2025 Example 3');
     assert.equal(document.querySelectorAll('.best-match .warning-details b').length, 3);
-    await act(async () => document.querySelectorAll('.mode-card')[0].click());
+    await act(async () => document.querySelector('.mode-card[data-mode="value"]').click());
     assert.notEqual(document.querySelector('.best-match h2').textContent, '2025 Example 3');
     assert.equal(document.querySelector('.ranking-row:last-child h3').textContent, '2025 Example 3');
-    await act(async () => document.querySelectorAll('.mode-card')[5].click());
-    assert.equal(document.querySelectorAll('.mode-card')[5].getAttribute('aria-pressed'), 'true');
+    await act(async () => document.querySelector('.mode-card[data-mode="balanced"]').click());
+    assert.equal(document.querySelector('.mode-card[data-mode="balanced"]').getAttribute('aria-pressed'), 'true');
     await go('compare');
     await add('444444444444', 25000, 2023);
     assert.equal(document.querySelectorAll('.car-card').length, 4);
@@ -145,7 +144,7 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     assert.equal(document.querySelector('.vehicle-name').textContent, '2021 Example 2');
     await go('decide');
     assert.equal(document.querySelectorAll('.ranking-row').length, 4);
-    assert.equal(document.querySelectorAll('.mode-card')[5].getAttribute('aria-pressed'), 'true');
+    assert.equal(document.querySelector('.mode-card[data-mode="balanced"]').getAttribute('aria-pressed'), 'true');
     await go('compare');
     await act(async () => document.querySelector('.section-heading button').click());
     assert.equal(document.querySelectorAll('.car-card').length, 0);
@@ -197,18 +196,41 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     assert.ok(document.querySelector('.model-research a[href="https://www.caranddriver.com/honda/civic-2018"]'));
     assert.equal(document.querySelector('.table-scroll').querySelectorAll('tbody tr').length, 7);
     await go('decide');
-    await act(async () => document.querySelectorAll('.mode-card')[3].click());
-    assert.equal(document.querySelector('.best-match'), null);
-    assert.match(document.querySelector('.result-banner').textContent, /sourced model guidance/);
+    await act(async () => document.querySelector('.mode-card[data-mode="performance"]').click());
+    assert.equal(document.querySelector('.decision-match').dataset.basis, 'starting-point');
+    assert.match(document.querySelector('.decision-reason').textContent, /starting point/);
     assert.equal(document.querySelectorAll('.research-guidance-grid > article').length, 3);
     assert.equal(document.querySelectorAll('.research-next-step').length, 2);
-    assert.match(document.querySelector('.decision-research').textContent, /No live web research integration/);
-    assert.equal(document.querySelectorAll('.ranking-score')[0].textContent, 'Unscored');
-    await act(async () => document.querySelectorAll('.mode-card')[4].click());
+    assert.match(document.querySelector('.decision-research').textContent, /General AI web research is not connected/);
+    assert.match(document.querySelector('.score-basis').textContent, /not a score for the selected priority/);
+    await act(async () => document.querySelector('.mode-card[data-mode="comfort"]').click());
     assert.match(document.querySelector('.decision-research').textContent, /sound isolation/);
-    await act(async () => document.querySelectorAll('.mode-card')[0].click());
+    await act(async () => document.querySelector('.mode-card[data-mode="value"]').click());
     assert.ok(document.querySelector('.best-match'));
     assert.match(document.querySelector('.score-parts').textContent, /Seller-reported/);
+    const beforeLookup = document.querySelector('.decision-match h2').textContent;
+    let recallCalls = 0;
+    globalThis.fetch = async (url, options) => {
+      recallCalls++;
+      assert.equal(url, '/api/recalls');
+      assert.equal(options.cache, 'no-store');
+      assert.deepEqual(Object.keys(JSON.parse(options.body)).sort(), ['make', 'model', 'year']);
+      return Response.json({ recalls: { status: 'available', count: 0, campaigns: [], checked: '2026-10-29T12:00:00Z' } });
+    };
+    await act(async () => {
+      document.querySelector('.recall-research button').click();
+      await new Promise(resolve => setTimeout(resolve, 20));
+    });
+    assert.equal(recallCalls, 1);
+    assert.match(document.querySelector('.recall-research [role="status"]').textContent, /does not establish.*recall-free/);
+    assert.equal(document.querySelector('.decision-match h2').textContent, beforeLookup, 'recalls do not alter ranking');
+    globalThis.fetch = async () => { throw new TypeError('offline'); };
+    await act(async () => {
+      document.querySelector('.recall-research button').click();
+      await new Promise(resolve => setTimeout(resolve, 20));
+    });
+    assert.match(document.querySelector('.recall-research [role="status"]').textContent, /Lookup unavailable/);
+
   } finally {
     await act(async () => root.unmount());
     await new Promise(resolve => setTimeout(resolve, 50));

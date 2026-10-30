@@ -13,7 +13,7 @@ const [civic, corolla, mazda] = makeDemoCars();
 const noSpecs = car => ({ ...car, itemSpecifics: [] });
 
 test('every curated profile covers all requested topics with identifiable reviewed sources', () => {
-  assert.equal(MODEL_PROFILES.length, 3);
+  assert.equal(MODEL_PROFILES.length, 5);
   for (const profile of MODEL_PROFILES) {
     const claims = supportedClaims(profile);
     assert.equal(claims.length, profile.claims.length, profile.id);
@@ -26,7 +26,7 @@ test('every curated profile covers all requested topics with identifiable review
 });
 
 test('claims with absent, dangling, insecure or unidentified sources are withheld', () => {
-  const profile = MODEL_PROFILES[0];
+  const profile = MODEL_PROFILES.find(p => p.id === 'civic-2018');
   for (const change of [
     { sources: [] },
     { sources: profile.sources.map(s => ({ ...s, publisher: '' })) },
