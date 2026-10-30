@@ -188,13 +188,13 @@ test('performance ranks explicit power or torque, not engine size or drivetrain 
   assert.equal(rankDecisionMode([listing({ description: '200 Nm' }), listing({ legacyItemId: 'B', description: '300 Nm' })], 'performance').best[0].car.legacyItemId, 'B');
 });
 
-test('comfort compares documentation across different feature lists while unknown equipment is never absent', () => {
+test('comfort compares only shared documented feature categories while unknown equipment is never absent', () => {
   const a = listing({ legacyItemId: 'A', description: 'Heated seats. Backup camera.' });
   const b = listing({ legacyItemId: 'B', description: 'Leather seats. Navigation. Climate control.' });
   const result = rankDecisionMode([a, b], 'comfort');
-  assert.equal(result.best[0].car.legacyItemId, 'B');
-  assert.equal(result.ranked[0].values.features, 3);
-  assert.equal(result.ranked[1].values.features, 2);
+  assert.equal(result.best.length, 0, 'disjoint feature lists cannot establish comfort superiority');
+  assert.equal(result.ranked[0].values.features, null);
+  assert.equal(result.ranked[1].values.features, null);
   assert.match(result.limitation, /less documentation/);
   assert.equal(extractVehicleSpecs(b).features['Heated seats'].value, null);
   assert.equal(rankDecisionMode([a, listing()], 'comfort').best.length, 0);

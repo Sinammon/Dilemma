@@ -100,9 +100,9 @@ export function rankDecisionMode(cars, modeId, year = new Date().getFullYear(), 
     priceOnly: mode.id === 'cost', criteria,
     yearForCar: car => vehicleSpecs[cars.indexOf(car)].specs.year.value,
     extraValues: car => {
-      const index = cars.indexOf(car), specs = vehicleSpecs[index].specs, amenities = Object.values(features[index]);
+      const index = cars.indexOf(car), specs = vehicleSpecs[index].specs;
       return { power: specs.horsepower.value, torque: specs.torque.value,
-        features: amenities.some(value => value !== null) ? amenities.filter(value => value === true).length : null,
+        features: commonFeatures.length ? commonFeatures.filter(key => features[index][key] === true).length : null,
         seats: specs.seats.value == null || !Number.isFinite(scenario.minSeats) || scenario.minSeats < 1 ? null : Number(specs.seats.value >= scenario.minSeats),
         body: specs.bodyType.value == null || !scenario.bodyType ? null : Number(specs.bodyType.value === scenario.bodyType),
         fuel: sameFuel ? annualFuelCost(car.enrichment.fuel, scenario) : null };

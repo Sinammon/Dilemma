@@ -3,6 +3,38 @@
 const reviewed = '2026-10-29';
 export const MODEL_PROFILES = [
   {
+    id: 'thunderbird-2002', title: '2002 Ford Thunderbird', year: 2002, make: 'Ford',
+    models: ['Thunderbird'], bodies: ['Convertible'],
+    scope: '2002 North American two-seat convertible. Contemporary road tests describe new test cars; age, repairs and modifications can change the experience.',
+    sources: [
+      { id: 'thunderbird-road', publisher: 'Dan Jedlicka / Drive Chicago', title: '2002 Ford Thunderbird road test', url: 'https://www.drivechicago.com/reviews/article/704/road-test', reviewed, kind: 'Road-test opinion, US', locator: 'Cockpit, trunk, suspension and driving impressions' },
+      { id: 'thunderbird-longterm', publisher: 'MotorTrend', title: '2002 Ford Thunderbird long-term test verdict', url: 'https://www.motortrend.com/reviews/2002-ford-thunderbird-3', reviewed, kind: 'Long-term test, one US vehicle', locator: 'Staff verdicts; problem areas in test-data table' },
+    ],
+    claims: [
+      { id: 'thunderbird-strength', category: 'strengths', tone: 'positive', text: 'The road tester praises the comfortable seats and relaxed cruising character.', sourceIds: ['thunderbird-road'] },
+      { id: 'thunderbird-comfort', category: 'comfort', tone: 'positive', text: 'The review describes a smooth ride, with some bouncing over dips.', sourceIds: ['thunderbird-road'] },
+      { id: 'thunderbird-practical', category: 'practicality', tone: 'caution', text: 'The two-seat layout and shallow trunk limit passenger and luggage flexibility.', sourceIds: ['thunderbird-road'] },
+      { id: 'thunderbird-performance', category: 'performance', tone: 'mixed', text: 'The tester finds responsive automatic shifts but positions it as a cruiser rather than a sports car.', sourceIds: ['thunderbird-road'] },
+      { id: 'thunderbird-issues', category: 'issues', tone: 'caution', text: 'MotorTrend reported transmission-shift, CD-changer and shifter-trim problems on its long-term car. Check these during inspection; one test car does not establish failure frequency.', sourceIds: ['thunderbird-longterm'] },
+    ],
+  },
+  {
+    id: 'sprinter-2005', title: '2005 Dodge Sprinter', year: 2005, make: 'Dodge',
+    models: ['Sprinter', 'Sprinter 2500', 'Sprinter 3500'], bodies: ['Van'], excludedVariants: ['Roadtrek', 'Winnebago', 'Airstream'],
+    scope: '2005 North American Dodge van range. Passenger-test impressions are conditional; cargo vans and camper conversions differ. Seating, roof and wheelbase must be checked on the individual van.',
+    sources: [
+      { id: 'sprinter-review', publisher: 'Edmunds', title: '2005 Dodge Sprinter expert review', url: 'https://www.edmunds.com/dodge/sprinter/2005/review/', reviewed, kind: 'Editorial review, US', locator: 'Expert Review: Pros, Cons and Edmunds says; excludes owner reviews' },
+      { id: 'sprinter-passenger', publisher: 'Auto123 / Mathieu St-Pierre', title: '2005 Dodge Sprinter Passenger (6 July 2005)', url: 'https://www.auto123.com/en/car-reviews/2005-dodge-sprinter-passenger/55743/', reviewed, kind: 'Passenger-van road test, Canada', locator: 'Styling: seating and crosswind sensitivity' },
+    ],
+    claims: [
+      { id: 'sprinter-strength', category: 'strengths', tone: 'positive', text: 'Edmunds highlights its flexible body configurations and generous cargo space.', sourceIds: ['sprinter-review'] },
+      { id: 'sprinter-comfort', category: 'comfort', tone: 'mixed', text: 'Auto123 found firm but comfortable seats in its passenger test van. This does not describe seating in a cargo van or conversion.', sourceIds: ['sprinter-passenger'] },
+      { id: 'sprinter-practical', category: 'practicality', tone: 'positive', text: 'Edmunds praises cargo capacity and headroom; the actual configuration determines available space.', sourceIds: ['sprinter-review'] },
+      { id: 'sprinter-performance', category: 'performance', tone: 'caution', text: 'Edmunds criticizes high-speed acceleration. Its work-van role differs from a passenger car.', sourceIds: ['sprinter-review'] },
+      { id: 'sprinter-issues', category: 'issues', tone: 'caution', text: 'Auto123 notes crosswind sensitivity. Check stability and loading on a test drive; the reviewed sources do not establish common mechanical-failure rates.', sourceIds: ['sprinter-passenger'] },
+    ],
+  },
+  {
     id: 'civic-2018', title: '2018 Honda Civic', year: 2018, make: 'Honda',
     models: ['Civic', 'Civic Sedan', 'Civic Coupe', 'Civic Hatchback'],
     bodies: ['Sedan', 'Coupe', 'Hatchback'], excludedVariants: ['Si', 'Type R'],

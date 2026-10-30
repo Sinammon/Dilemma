@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { createServer } from 'vite';
 
-test('sample carousel advances slowly and suspends while hovered, focused, hidden, paused, or comparing', async () => {
+test('preview is manual, guards rapid navigation, supports keyboard steps and keeps priorities illustrative', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost', pretendToBeVisual: true });
   const globals = ['window', 'document', 'HTMLElement', 'Element', 'SVGElement'];
   for (const name of globals) globalThis[name] = dom.window[name];
@@ -33,35 +33,40 @@ test('sample carousel advances slowly and suspends while hovered, focused, hidde
   try {
     const { default: Preview } = await vite.ssrLoadModule('/src/LandingPreview.jsx');
     await act(async () => root.render(React.createElement(LazyMotion, { features: domAnimation }, React.createElement(Preview, { onStart() {} }))));
-    assert.equal(intervals.size, 1);
-    assert.equal(document.querySelector('.sample-car[aria-hidden="false"] h3').textContent, 'Honda Civic');
-    await act(async () => [...intervals.values()][0]());
-    assert.equal(document.querySelector('.sample-car[aria-hidden="false"] h3').textContent, 'Toyota Corolla');
-    const preview = document.querySelector('.product-preview');
-    await act(async () => preview.dispatchEvent(new dom.window.MouseEvent('mouseover', { bubbles: true })));
-    assert.equal(intervals.size, 0, 'hover pauses auto-advance');
-    await act(async () => preview.dispatchEvent(new dom.window.MouseEvent('mouseout', { bubbles: true })));
-    assert.equal(intervals.size, 1);
-    await act(async () => preview.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true })));
-    assert.equal(intervals.size, 0, 'keyboard interaction pauses auto-advance');
-    await act(async () => preview.dispatchEvent(new dom.window.FocusEvent('focusout', { bubbles: true })));
-    assert.equal(intervals.size, 1);
-    await act(async () => { hidden = true; document.dispatchEvent(new dom.window.Event('visibilitychange')); });
-    assert.equal(intervals.size, 0, 'hidden tabs do no carousel work');
-    await act(async () => { hidden = false; document.dispatchEvent(new dom.window.Event('visibilitychange')); });
-    assert.equal(intervals.size, 1);
-    await act(async () => document.querySelector('.carousel-toggle').click());
-    assert.equal(intervals.size, 0, 'explicit pause persists');
-    await act(async () => document.querySelector('.carousel-toggle').click());
-    assert.equal(intervals.size, 1);
-    await act(async () => document.querySelectorAll('.preview-stages button')[1].click());
-    assert.equal(intervals.size, 0, 'other stages do no carousel work');
-    assert.ok(document.querySelector('.preview-comparison'));
-    await act(async () => document.querySelectorAll('.preview-stages button')[0].click());
-    assert.equal(intervals.size, 1);
-    await act(async () => document.querySelector('.carousel-next').click());
-    assert.equal(intervals.size, 0, 'manual navigation stops auto-advance');
-    assert.equal(document.querySelector('.sample-car[aria-hidden="false"] h3').textContent, 'Mazda3');
+    assert.equal(intervals.size, 0, 'there is no autoplay timer');
+    assert.equal(document.querySelectorAll('.preview-vehicle').length, 4);
+    assert.equal(document.querySelector('.preview-vehicle.selected strong').textContent, '2018 Honda Civic');
+    const click = async selector => act(async () => {
+      document.querySelector(selector).click();
+      await new Promise(resolve => setTimeout(resolve, 620));
+    });
+    await act(async () => {
+      const next = document.querySelector('.showcase-next');
+      next.click(); next.click(); next.click();
+      await new Promise(resolve => setTimeout(resolve, 620));
+    });
+    assert.equal(document.querySelector('[role="tab"][aria-selected="true"]').id, 'preview-step-1', 'rapid clicks advance one stage');
+    assert.ok(document.querySelector('.showcase-comparison'));
+    assert.equal(document.querySelectorAll('.showcase-comparison thead img').length, 3);
+    await click('.showcase-previous');
+    assert.equal(document.querySelector('[role="tab"][aria-selected="true"]').id, 'preview-step-0');
+    await act(async () => {
+      document.querySelector('#preview-step-0').dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true }));
+      await new Promise(resolve => setTimeout(resolve, 620));
+    });
+    assert.equal(document.activeElement.id, 'preview-step-2');
+    assert.equal(document.querySelectorAll('.sample-priorities button').length, 4);
+    await click('.sample-priorities button:nth-child(3)');
+    assert.equal(document.querySelector('.preview-match h3').textContent, '2019 Toyota Corolla');
+    assert.match(document.querySelector('.match-reason').textContent, /fictional scenario/);
+    assert.equal(document.querySelectorAll('.preview-match li').length, 2);
+    assert.ok(document.querySelector('.match-tradeoff'));
+    assert.match(document.querySelector('.showcase-disclaimer').textContent, /Fictional details/);
+    assert.equal(intervals.size, 0);
+    await click('.showcase-progress button:first-child');
+    assert.equal(document.querySelector('[role="tab"][aria-selected="true"]').id, 'preview-step-0');
+    assert.equal(document.querySelectorAll('[role="tabpanel"][aria-hidden="false"]').length, 1);
+
   } finally {
     await act(async () => root.unmount());
     await new Promise(resolve => setTimeout(resolve, 60));

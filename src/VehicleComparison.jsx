@@ -5,12 +5,16 @@ import { extractVehicleSpecs, FIELD_LABELS } from './vehicle-specs.js';
 import { SpecValue } from './VehicleEvidence.jsx';
 import VehicleSummary from './VehicleSummary.jsx';
 
+export function vehicleImageUrl(car, index = 0) {
+  const value = (car.images || [])[index];
+  return safeUrl(value) || (car.demo === true && /^\/images\/preview\/(civic|corolla|mazda3|jetta)\.jpg$/.test(value) ? value : null);
+}
 export function VehicleImage({ car }) {
   const [index, setIndex] = useState(0);
   const images = car.images || [];
-  const url = safeUrl(images[index]);
-  return <div className="vehicle-image">{url ? <img src={url} alt={vehicleName(car)} referrerPolicy="no-referrer" onError={() => setIndex(i => i + 1)} /> : <div className="image-placeholder"><span aria-hidden="true">◇</span>Image unavailable</div>}
-    <span className="source-pill">{car.demo ? 'Fictional demo vehicle' : 'Seller listing · eBay'}</span>
+  const url = vehicleImageUrl(car, index);
+  return <div className="vehicle-image">{url ? <img src={url} alt={car.demo ? `${car.make} ${car.model} model-example photo; fictional vehicle details` : vehicleName(car)} referrerPolicy="no-referrer" onError={() => setIndex(i => i + 1)} /> : <div className="image-placeholder"><span aria-hidden="true">◇</span>Image unavailable</div>}
+    <span className="source-pill">{car.demo ? 'Model photo · fictional details' : 'Seller listing · eBay'}</span>
     {images.length > 1 && url && <button className="photo-next" aria-label={`Next photo of ${vehicleName(car)}`} onClick={() => setIndex(i => (i + 1) % images.length)}>›</button>}
   </div>;
 }
