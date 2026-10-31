@@ -193,9 +193,9 @@ test('comfort compares only shared documented feature categories while unknown e
   const b = listing({ legacyItemId: 'B', description: 'Leather seats. Navigation. Climate control.' });
   const result = rankDecisionMode([a, b], 'comfort');
   assert.equal(result.best.length, 0, 'disjoint feature lists cannot establish comfort superiority');
-  assert.equal(result.ranked[0].values.features, null);
-  assert.equal(result.ranked[1].values.features, null);
-  assert.match(result.limitation, /less documentation/);
+  assert.equal(result.ranked[0].score, null);
+  assert.equal(result.ranked[1].score, null);
+  assert.match(result.limitation, /Ride 35%/);
   assert.equal(extractVehicleSpecs(b).features['Heated seats'].value, null);
   assert.equal(rankDecisionMode([a, listing()], 'comfort').best.length, 0);
 });
@@ -215,16 +215,12 @@ test('fuel, seating and body factors are comparable and transparent; missing evi
   assert.equal(practical.best[0].values.body, 1);
 });
 
-test('worked example gives 45 versus 55, explains trade-offs, and condition warnings override the higher score', () => {
-  const a = listing({ legacyItemId: 'A', priceCAD: { value: '16000', currency: 'CAD' } });
-  const b = listing({ legacyItemId: 'B', year: '2020', priceCAD: { value: '19000', currency: 'CAD' }, mileage: { raw: '70000', unit: 'km' } });
+test('new value scoring keeps documented purchase concerns visible without reordering capability', () => {
+  const a = listing({ legacyItemId: 'A', description: '200 hp.', priceCAD: { value: '16000', currency: 'CAD' } });
+  const b = listing({ legacyItemId: 'B', description: '200 hp. Engine problems. Coolant leak.', year: '2020', priceCAD: { value: '19000', currency: 'CAD' }, mileage: { raw: '70000', unit: 'km' } });
   const result = rankDecisionMode([a, b], 'value', 2026);
-  assert.equal(result.best[0].car.legacyItemId, 'B');
-  assert.equal(result.ranked[0].score, 55);
-  assert.equal(result.ranked[1].score, 45);
-  assert.equal(result.ranked[0].breakdown.find(f => f.key === 'price').points, 0);
-  const concerns = rankDecisionMode([a, { ...b, description: '<p>Engine problems. Coolant leak.</p>' }], 'value', 2026);
-  assert.equal(concerns.best[0].car.legacyItemId, 'A');
-  assert.equal(concerns.ranked[1].warnings.length, 2);
-  assert.equal(rankDecisionMode([listing({ description: 'Not running.' })], 'value').best.length, 0);
+  assert.equal(result.ranked.find(entry => entry.car === b).warnings.length, 2);
+  assert.equal(result.ranked.find(entry => entry.car === b).reviewRequired, true);
+  assert.equal(result.best[0].car.legacyItemId, 'A');
+  assert.equal(result.best[0].breakdown.find(f => f.key === 'price').points, 100);
 });

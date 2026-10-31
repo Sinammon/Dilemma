@@ -140,30 +140,15 @@ const reviewed = (car, category, tone) => {
   return { ...car, enrichment: { modelSpecs: { status: 'partial', ...research } } };
 };
 
-test('sourced model assessments contribute exactly 25 percent and can change a recommendation', () => {
-  const base = [
-    { legacyItemId: 'A', year: '2018', make: 'Honda', model: 'Civic', priceCAD: { value: '10000', currency: 'CAD' }, mileage: { raw: '100000', unit: 'km' } },
-    { legacyItemId: 'B', year: '2018', make: 'Honda', model: 'Accord', priceCAD: { value: '20000', currency: 'CAD' }, mileage: { raw: '50000', unit: 'km' } },
-  ];
-  assert.equal(rankDecisionMode(base, 'value').best[0].car.legacyItemId, 'A');
-  const cars = [reviewed(base[0], 'value', 'drawback'), reviewed(base[1], 'value', 'advantage')];
-  const result = rankDecisionMode(cars, 'value');
-  assert.equal(result.researchWeight, 0.25);
-  assert.equal(result.best[0].car.legacyItemId, 'B');
-  assert.equal(result.best[0].score, 56.88);
-  assert.equal(result.ranked[1].score, 43.13);
-  assert.equal(result.best[0].breakdown.find(f => f.key === 'research').share, 0.25);
-  assert.equal(result.best[0].breakdown.filter(f => f.key !== 'research').reduce((sum, f) => sum + f.share, 0), 0.75);
-  const incomplete = rankDecisionMode([cars[0], base[1]], 'value');
-  assert.equal(incomplete.researchWeight, 0);
-  assert.equal(incomplete.best[0].car.legacyItemId, 'A');
-  const noPrice = base.map(({ priceCAD, mileage, ...car }) => reviewed(car, 'cost', 'advantage'));
-  assert.equal(rankDecisionMode(noPrice, 'cost').totalWeight, 0);
-  assert.equal(rankDecisionMode(noPrice, 'cost').best.length, 0);
-  const summary = decisionSummary(cars, 'value');
-  const notes = entrySummary(summary, summary.ranking.best[0]);
-  assert.ok(notes.reasons.length <= 3);
-  assert.ok(notes.reasons.some(r => r.source));
+test('legacy broad sentiment remains readable but cannot add numerical ranking points', () => {
+  const base = [{ legacyItemId: 'A', year: '2018', make: 'Honda', model: 'Civic', description: '200 hp.' }, { legacyItemId: 'B', year: '2018', make: 'Honda', model: 'Accord', description: '200 hp.' }];
+  const cars = [reviewed(base[0], 'performance', 'drawback'), reviewed(base[1], 'performance', 'advantage')];
+  const result = rankDecisionMode(cars, 'performance');
+  assert.equal(result.researchWeight, 0);
+  assert.equal(result.best.length, 2);
+  assert.ok(result.research.every(entry => entry.guidance.claims.length));
+  assert.ok(result.ranked.every(entry => !entry.breakdown.some(f => f.key === 'research')));
+  assert.equal(rankDecisionMode(cars, 'comfort').best.length, 0);
 });
 
 test('failed sources, irrelevant scopes, unsupported money and invalid assessment references are excluded', () => {
@@ -225,9 +210,8 @@ test('ranges and optional features are context, standard equipment and single va
   const performance = rankDecisionMode(cars, 'performance');
   assert.equal(performance.best[0].car.legacyItemId, 'A');
   assert.match(performance.best[0].breakdown[0].evidenceLabel, /Typical model spec/);
-  assert.equal(rankDecisionMode(cars, 'comfort').best[0].car.legacyItemId, 'A');
-  assert.match(rankDecisionMode(cars, 'comfort').best[0].breakdown[0].evidenceLabel, /typical model/);
-  assert.equal(rankDecisionMode([cars[0], modelCar('B', ranges)], 'performance').totalWeight, 0);
+  assert.equal(rankDecisionMode(cars, 'comfort').best.length, 0, 'standard amenities alone do not establish ride comfort');
+  assert.equal(rankDecisionMode([cars[0], modelCar('B', ranges)], 'performance').ranked[1].score, null);
 });
 
 test('research never overwrites seller claims, conflicts, VIN values or failed VIN matches', () => {
@@ -244,7 +228,7 @@ test('research never overwrites seller claims, conflicts, VIN values or failed V
   assert.equal(extractVehicleSpecs(car).specs.horsepower.value, 158, 'consistent sourced model specs remain accessible despite a seating warning');
   assert.equal(extractVehicleSpecs(car).specs.horsepower.status, 'model-reference');
   assert.equal(extractVehicleSpecs(car).specs.seats.value, 4, 'neither VIN nor research overwrites disputed seating');
-  assert.equal(rankDecisionMode([car], 'performance').best.length, 0, 'unresolved VIN warnings still prevent endorsement');
+  assert.equal(rankDecisionMode([car], 'performance').best[0].warnings.length, 1, 'seating warning remains separate from category capability');
 });
 
 test('missing key, quota, access and malformed responses degrade without retries or paid fallback', async () => {
@@ -331,7 +315,9 @@ test('Maybach seating mismatch permits model research while preserving VIN and s
   assert.equal(liveResearchForCar(car).insights.length, 1, 'retrieved model notes remain accessible');
   assert.equal(extractVehicleSpecs(car).specs.seats.value, 4);
   assert.equal(car.enrichment.vin.mismatches.length, 1);
-  assert.equal(rankDecisionMode([car], 'comfort').best.length, 0);
+  const comfort = rankDecisionMode([car], 'comfort');
+  assert.equal(comfort.best[0].warnings.length, 1, 'reviewed comfort can rank while the seating warning remains visible');
+  assert.equal(comfort.provisional, true);
   for (const field of ['Year', 'Make', 'Model', 'Engine displacement (L)', 'Body type', 'Unknown field']) {
     const blocked = { ...car, enrichment: { vin: { ...car.enrichment.vin, mismatches: [{ field, listing: 'A', vin: 'B' }] } } };
     const result = await loadModelSpecs(blocked, { fetcher: () => assert.fail('Configuration mismatch must block research') });

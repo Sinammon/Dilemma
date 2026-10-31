@@ -1,5 +1,8 @@
 // The browser and backend share the research contract; no credentials or network here.
-export const MODEL_SPEC_FIELDS = ['displacement', 'engineType', 'induction', 'cylinders', 'horsepower', 'torque', 'transmission', 'transmissionSpeeds', 'drivetrain', 'fuelType', 'bodyType', 'seats'];
+export const MODEL_SPEC_FIELDS = ['displacement', 'engineType', 'induction', 'cylinders', 'horsepower', 'torque', 'curbWeightKg', 'zeroTo100KphSeconds', 'zeroTo60MphSeconds', 'transmission', 'transmissionSpeeds', 'drivetrain', 'fuelType', 'bodyType', 'seats'];
+export const RATING_DIMENSIONS = ['rideQuality', 'cabinQuietness', 'frontSeatComfort', 'rearSeatComfort', 'frontPassengerSpace', 'rearPassengerSpace', 'cargoSpace'];
+export const RATING_ANCHORS = ['Severe deficiency', 'Poor', 'Basic', 'Good mainstream', 'Premium', 'Exceptional'];
+export const ACCELERATION_FIELDS = ['zeroTo100KphSeconds', 'zeroTo60MphSeconds'];
 export const MODEL_FEATURES = ['Heated seats', 'Leather seats', 'Navigation', 'Backup camera', 'Sunroof', 'Bluetooth', 'Air conditioning', 'Cruise control', 'Climate control', 'Heated steering wheel', 'Ventilated seats', 'Power seats', 'Apple CarPlay', 'Android Auto', 'Parking sensors', 'Remote start'];
 export const MODEL_FIELDS = [...MODEL_SPEC_FIELDS, ...MODEL_FEATURES.map(name => `feature:${name}`)];
 export const CONFIG_FIELDS = ['year', 'make', 'model', 'trim', 'market', 'displacement', 'cylinders', 'bodyType', 'transmission', 'transmissionSpeeds', 'drivetrain', 'fuelType'];
@@ -10,6 +13,9 @@ export const RESEARCH_STATUSES = ['matched', 'partial', 'complete', 'unavailable
 const relevantFields = {
   horsepower: ['trim', 'market', 'displacement', 'cylinders', 'bodyType', 'fuelType', 'transmission'],
   torque: ['trim', 'market', 'displacement', 'cylinders', 'bodyType', 'fuelType', 'transmission'],
+  curbWeightKg: ['trim', 'market', 'displacement', 'cylinders', 'bodyType', 'fuelType', 'transmission', 'drivetrain'],
+  zeroTo100KphSeconds: ['trim', 'market', 'displacement', 'cylinders', 'bodyType', 'fuelType', 'transmission', 'drivetrain'],
+  zeroTo60MphSeconds: ['trim', 'market', 'displacement', 'cylinders', 'bodyType', 'fuelType', 'transmission', 'drivetrain'],
   displacement: ['trim', 'market', 'bodyType', 'fuelType'], cylinders: ['trim', 'market', 'displacement', 'fuelType'],
   engineType: ['market', 'displacement', 'cylinders', 'fuelType'], induction: ['trim', 'market', 'displacement', 'fuelType'],
   transmission: ['trim', 'market', 'displacement', 'fuelType'], transmissionSpeeds: ['trim', 'market', 'displacement', 'transmission'],
@@ -26,7 +32,7 @@ const enums = {
   drivetrain: ['AWD', '4WD', 'FWD', 'RWD'], fuelType: ['Gasoline', 'Diesel', 'Electric', 'Ethanol / flex fuel'],
   bodyType: ['SUV', 'Hatchback', 'Sedan', 'Coupe', 'Convertible', 'Wagon', 'Pickup', 'Van'],
 };
-const bounds = { displacement: [0.1, 20], cylinders: [1, 24], horsepower: [1, 3000], torque: [1, 10000], transmissionSpeeds: [1, 20], seats: [1, 100] };
+const bounds = { displacement: [0.1, 20], cylinders: [1, 24], horsepower: [1, 3000], torque: [1, 10000], curbWeightKg: [100, 20000], zeroTo100KphSeconds: [0.5, 120], zeroTo60MphSeconds: [0.5, 120], transmissionSpeeds: [1, 20], seats: [1, 100] };
 export function modelFieldValue(key, raw) {
   if (key.startsWith('feature:')) return raw === true || raw === 'true' ? true : raw === false || raw === 'false' ? false : null;
   if (bounds[key]) {
@@ -83,6 +89,7 @@ export function usableModelFinding(field, finding, input) {
   if (!finding.evidence.every(e => typeof e.quote === 'string' && e.quote && typeof e.source === 'string' && /^https:\/\//.test(e.url))) return false;
   if (finding.kind === 'value') {
     if (modelFieldValue(field, finding.value) == null) return false;
+    if (ACCELERATION_FIELDS.includes(field) && !['manufacturer', 'instrumented-test'].includes(finding.measurementMethod)) return false;
     if (field.startsWith('feature:') && finding.availability !== (finding.value ? 'standard' : 'not-available')) return false;
     // An unknown trim/market/engine must not become a silently selected variant.
     if (relevantDiscriminators(field).some(key => input[key] == null && !finding.sharedAcross?.includes(key))) return false;
@@ -115,6 +122,16 @@ export function researchAssessment(insights) {
 }
 export const ASSESSMENT_VALUES = { favourable: 2, mixed: 1, unfavourable: 0 };
 
+export function validDimensionRating(rating, input) {
+  return rating && Number.isInteger(rating.rating) && rating.rating >= 0 && rating.rating <= 5
+    && typeof rating.rationale === 'string' && rating.rationale.length >= 15 && rating.rationale.length <= 600
+    && rating.contextOnly !== true && rating.scope
+    && ['year', 'make', 'model'].every(key => sameConfigurationValue(rating.scope[key], input[key]))
+    && DISCRIMINATORS.every(key => rating.scope[key] == null || input[key] != null && sameConfigurationValue(rating.scope[key], input[key]))
+    && Array.isArray(rating.evidence) && rating.evidence.length > 0
+    && rating.evidence.every(e => e?.quote && e.source && e.editorial === true && /^https:\/\//.test(e.url));
+}
+
 export function validatedResearch(data, input) {
   const fields = Object.fromEntries(Object.entries(data?.fields || {}).filter(([field, finding]) => input.fields.includes(field) && usableModelFinding(field, finding, input)));
   const resolvedInput = { ...input, ...Object.fromEntries(Object.entries(fields).filter(([field, f]) => CONFIG_FIELDS.includes(field) && input[field] == null && f.kind === 'value').map(([field, f]) => [field, f.value])) };
@@ -127,5 +144,6 @@ export function validatedResearch(data, input) {
     if (claims.some(c => !c || c.contextOnly) || researchAssessment(claims) !== proposed.assessment) continue;
     assessments[category] = { assessment: proposed.assessment, value: ASSESSMENT_VALUES[proposed.assessment], insightIds: [...new Set(proposed.insightIds)] };
   }
-  return { ...data, fields, insights, assessments };
+  const dimensionRatings = Object.fromEntries(RATING_DIMENSIONS.filter(key => validDimensionRating(data?.dimensionRatings?.[key], resolvedInput)).map(key => [key, data.dimensionRatings[key]]));
+  return { ...data, fields, insights, assessments, dimensionRatings };
 }

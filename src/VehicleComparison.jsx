@@ -33,7 +33,7 @@ function ComparisonWarnings({ car }) {
 export default function VehicleComparison({ cars, removeCar, clearCars, importForm, navigate, retryResearch }) {
   const records = new Map(cars.map(car => [car, extractVehicleSpecs(car)]));
   const spec = (car, key) => <SpecValue spec={records.get(car).specs[key]} />;
-  const keyFields = ['transmission', 'transmissionSpeeds', 'displacement', 'engineType', 'induction', 'cylinders', 'horsepower', 'torque', 'drivetrain', 'fuelType', 'bodyType', 'seats'];
+  const keyFields = ['transmission', 'transmissionSpeeds', 'displacement', 'engineType', 'induction', 'cylinders', 'horsepower', 'torque', 'curbWeightKg', 'zeroTo100KphSeconds', 'zeroTo60MphSeconds', 'drivetrain', 'fuelType', 'bodyType', 'seats'];
   const sharedGaps = keyFields.filter(key => cars.every(car => records.get(car).specs[key].status === 'unknown'));
   const rows = [
     ['Asking price · seller', priceDisplay], ['Mileage and unit · seller', mileageDisplay],

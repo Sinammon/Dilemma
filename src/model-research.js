@@ -2,6 +2,7 @@ import { MODEL_PROFILES } from './model-profiles.js';
 import { extractVehicleSpecs, normalized } from './vehicle-specs.js';
 import { CONFIG_FIELDS, MODEL_FIELDS, modelSpecsInput, validatedResearch } from '../shared/model-specs.js';
 import { modelResearchBlockReason } from './model-specs.js';
+import { reviewedDimensionsForCar } from './reviewed-dimensions.js';
 
 export const RESEARCH_CATEGORIES = { strengths: 'Strengths', issues: 'Documented issues to investigate', comfort: 'Comfort', practicality: 'Practicality', performance: 'Performance' };
 export const RESEARCH_METHOD = 'Model research combines retrieved manufacturer information and attributed professional reviews. The reviewed model library is available as a fallback. Individual condition and installed equipment still need confirmation.';
@@ -43,6 +44,9 @@ export function liveResearchForCar(car) {
   if (CONFIG_FIELDS.some(key => specs[key]?.status === 'conflict')) return none;
   const input = modelSpecsInput({ ...Object.fromEntries(CONFIG_FIELDS.filter(key => specs[key]?.value != null).map(key => [key, specs[key].value])), fields: MODEL_FIELDS });
   return input ? validatedResearch(car.enrichment.modelSpecs, input) : none;
+}
+export function dimensionRatingsForCar(car) {
+  return { ...reviewedDimensionsForCar(car), ...liveResearchForCar(car).dimensionRatings };
 }
 export function liveResearchClaim(insight, checked) {
   const date = checked ? new Date(checked) : null;

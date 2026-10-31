@@ -79,7 +79,7 @@ test('factory conflicts preserve all evidence and prevent unsupported power from
   assert.equal(specs.horsepower.status, 'conflict');
   assert.equal(specs.torque.status, 'conflict');
   assert.equal(specs.horsepower.evidence.length, 2);
-  assert.equal(rankDecisionMode([attach(car), conflicting], 'performance').totalWeight, 0);
+  assert.equal(rankDecisionMode([attach(car), conflicting], 'performance').ranked[1].score, null);
   const agreeing = extractVehicleSpecs(attach({ ...car, description: '158 hp' })).specs;
   assert.equal(agreeing.horsepower.status, 'corroborated');
   assert.equal(extractVehicleSpecs(attach({ ...car, description: '187 Nm' })).specs.torque.status, 'corroborated', 'whole-unit rounding should not invent a conflict');

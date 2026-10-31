@@ -26,18 +26,19 @@ export function ResearchAction({ car, retryResearch }) {
   const checkingVehicle = car.enrichment?.status === 'loading';
   const research = car.enrichment?.modelSpecs;
   const specs = Object.keys(research?.fields || {}).length, notes = research?.insights?.length || 0;
-  const ready = specs + notes > 0;
+  const dimensions = Object.keys(research?.dimensionRatings || {}).length;
+  const ready = specs + notes + dimensions > 0;
   const failed = research && !['matched', 'partial', 'complete', 'loading'].includes(research.status);
   function showResults() {
     const target = [...document.querySelectorAll('.vehicle-summary[data-research-car]')].find(element => element.dataset.researchCar === String(car.legacyItemId));
     if (!target) return;
     for (let parent = target.parentElement; parent; parent = parent.parentElement) if (parent.tagName === 'DETAILS') parent.open = true;
-    if (notes) { const details = target.querySelector('.model-research'); if (details) details.open = true; }
+    if (notes || dimensions) { const details = target.querySelector('.model-research'); if (details) details.open = true; }
     target.focus({ preventScroll: true });
     target.scrollIntoView?.({ block: 'start', behavior: 'instant' });
   }
   const action = checkingVehicle ? 'Checking vehicle...' : busy ? 'Restart research' : ready ? 'Refresh research' : failed ? 'Retry research' : 'Research model';
-  return <div className="research-control">{busy ? <small role="status">{checkingVehicle ? 'Checking VIN and vehicle details before research.' : 'Researching model sources. You can restart this search if it stalls.'}</small> : ready && <small role="status">Research ready: {specs} specifications · {notes} sourced notes</small>}<div>{ready && <button type="button" className="text-button" onClick={showResults}>View results</button>}<button type="button" data-action="model-research" className="text-button" disabled={checkingVehicle} onClick={() => retryResearch(car)} aria-label={`${action} for ${car.year || ''} ${car.make || ''} ${car.model || ''}`}>{action}</button></div>{!busy && failed && <small>{research.reason}</small>}{research?.lastAttempt && <small>{research.lastAttempt.reason} Previous research is still available.</small>}</div>;
+  return <div className="research-control">{busy ? <small role="status">{checkingVehicle ? 'Checking VIN and vehicle details before research.' : 'Researching model sources. You can restart this search if it stalls.'}</small> : ready && <small role="status">Research ready: {specs} specifications · {notes} sourced notes ? {dimensions} dimension ratings</small>}<div>{ready && <button type="button" className="text-button" onClick={showResults}>View results</button>}<button type="button" data-action="model-research" className="text-button" disabled={checkingVehicle} onClick={() => retryResearch(car)} aria-label={`${action} for ${car.year || ''} ${car.make || ''} ${car.model || ''}`}>{action}</button></div>{!busy && failed && <small>{research.reason}</small>}{research?.lastAttempt && <small>{research.lastAttempt.reason} Previous research is still available.</small>}</div>;
 }
 export function SourceStatus({ car, retryResearch }) {
   const enrichment = car.enrichment;

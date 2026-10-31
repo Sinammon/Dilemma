@@ -4,6 +4,7 @@ import { JSDOM } from 'jsdom';
 import { createServer } from 'vite';
 import { readFile } from 'node:fs/promises';
 import { DISCRIMINATORS } from './shared/model-specs.js';
+import { comfortReferenceCars } from './test-data/comfort-reference.mjs';
 
 test('three-page journey preserves imports, supports all modes, removes and replaces cars, and handles unknown data', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost', pretendToBeVisual: true });
@@ -122,16 +123,16 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     assert.equal(window.location.hash, '#decide', 'skip navigation preserves the current stage');
     assert.equal(document.activeElement.id, 'main-content');
     assert.equal(document.querySelectorAll('input[type="range"]').length, 0);
-    assert.equal(document.querySelectorAll('.mode-grid .mode-card').length, 4);
+    assert.equal(document.querySelectorAll('.mode-grid .mode-card').length, 5);
     assert.equal(document.querySelectorAll('.mode-card').length, 6);
-    assert.equal(document.querySelector('.best-match h2').textContent, '2016 Example 1');
+    assert.equal(document.querySelector('.best-match'), null, 'unresearched listings have no category winner');
     await act(async () => document.querySelector('.mode-card[data-mode="practical"]').click());
-    assert.equal(document.querySelector('.best-match h2').textContent, '2021 Example 2');
+    assert.equal(document.querySelector('.best-match'), null);
     await act(async () => document.querySelector('.mode-card[data-mode="performance"]').click());
-    assert.equal(document.querySelector('.decision-match').dataset.basis, 'starting-point');
-    assert.match(document.querySelector('.decision-reason').textContent, /starting point/);
+    assert.equal(document.querySelector('.decision-match').dataset.basis, 'guidance');
+    assert.match(document.querySelector('.decision-reason').textContent, /No price-based substitute/);
     await act(async () => document.querySelector('.mode-card[data-mode="comfort"]').click());
-    assert.equal(document.querySelector('.best-match h2').textContent, '2016 Example 1');
+    assert.equal(document.querySelector('.best-match'), null, 'unresearched listings have no category winner');
     await go('compare');
     await add('333333333333', 100, 2025, 'Engine problems. Coolant leak. Not running.');
     assert.match(document.querySelector('.car-card:last-child .warning-details').textContent, /Engine concern.*Coolant leak/s, 'condition warnings remain visible while evidence sections are collapsed');
@@ -140,7 +141,7 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     assert.equal(document.querySelector('.best-match h2').textContent, '2025 Example 3');
     assert.equal(document.querySelectorAll('.best-match .warning-details b').length, 3);
     await act(async () => document.querySelector('.mode-card[data-mode="value"]').click());
-    assert.notEqual(document.querySelector('.best-match h2').textContent, '2025 Example 3');
+    assert.equal(document.querySelector('.best-match'), null);
     assert.equal(document.querySelector('.ranking-row:last-child h3').textContent, '2025 Example 3');
     await act(async () => document.querySelector('.mode-card[data-mode="balanced"]').click());
     assert.equal(document.querySelector('.mode-card[data-mode="balanced"]').getAttribute('aria-pressed'), 'true');
@@ -210,7 +211,7 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     await change('#listing-url', 'https://www.ebay.ca/itm/277777777777');
     await submit();
     await act(async () => {
-      researchPending[0].resolve(Response.json({ modelSpecs: { status: 'matched', fields: { horsepower: researchField(158), torque: researchField(150, 'range') }, searchSuggestions: '<div>Google Search</div>' } }));
+      researchPending[0].resolve(Response.json({ modelSpecs: { status: 'matched', fields: { horsepower: researchField(158), torque: researchField(150, 'range') }, dimensionRatings: { rideQuality: { rating: 4, rationale: 'Synthetic reviewed ride assessment for this regression.', scope: { year: 2018, make: 'Honda', model: 'Civic' }, evidence: [{ source: 'Synthetic editorial fixture', url: 'https://reviews.example.test/fixture', quote: 'Synthetic ride evidence, not a real review.', editorial: true }] } }, searchSuggestions: '<div>Google Search</div>' } }));
       researchPending[1].resolve(Response.json({ modelSpecs: { status: 'matched', fields: { horsepower: researchField(132) } } }));
       await new Promise(resolve => setTimeout(resolve, 25));
     });
@@ -234,6 +235,7 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     await act(async () => document.querySelector('.car-card .research-control button').click());
     assert.equal(document.querySelector('.vehicle-review').open, true, 'View results reveals the car evidence without another API request');
     assert.equal(document.activeElement, document.querySelector('.vehicle-summary'));
+    assert.equal(document.querySelector('.vehicle-summary .model-research').open, true, 'View results opens dimension research even without broad notes');
     await act(async () => document.querySelector('.car-card [data-action="model-research"]').click());
     assert.equal(document.querySelector('.car-card [data-action="model-research"]').textContent, 'Restart research');
     assert.match(document.querySelector('table').textContent, /158/);
@@ -243,6 +245,7 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     });
     assert.match(document.querySelector('table').textContent, /158/);
     assert.match(document.querySelector('.car-card').textContent, /Previous research is still available/);
+    assert.equal(document.querySelector('.source-status-grid .capability-details strong').textContent, '4 / 5', 'quota failure preserves previous dimension results');
     assert.equal(document.querySelectorAll('.car-card').length, 2);
     // A full shortlist must still search and retry its fourth car independently.
     for (const id of ['377777777777', '477777777777']) {
@@ -316,14 +319,16 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     await go('decide');
     await act(async () => document.querySelector('.mode-card[data-mode="performance"]').click());
     assert.equal(document.querySelector('.decision-match').dataset.basis, 'supported');
-    assert.match(document.querySelector('.decision-reason').textContent, /supported power.*torque/);
+    assert.match(document.querySelector('.decision-reason').textContent, /Provisional best fit/);
+    assert.match(document.querySelector('.evidence-coverage').textContent, /50% evidence coverage/);
+    assert.match(document.querySelector('.capability-details').textContent, /Curb weight.*Power-to-weight/s);
     assert.match(document.querySelector('.score-parts').textContent, /factory reference; not measured output/);
     assert.equal(document.querySelectorAll('.research-guidance-grid > article').length, 3);
     assert.equal(document.querySelectorAll('.research-next-step').length, 2);
     assert.match(document.querySelector('.decision-research').textContent, /retrieved manufacturer information/);
-    assert.match(document.querySelector('.score-basis').textContent, /Shortlist preference points/);
+    assert.match(document.querySelector('.score-basis').textContent, /Preference score/);
     await act(async () => document.querySelector('.mode-card[data-mode="comfort"]').click());
-    assert.equal(document.querySelector('.decision-match').dataset.basis, 'starting-point');
+    assert.equal(document.querySelector('.decision-match').dataset.basis, 'guidance');
     assert.match(document.querySelector('.decision-research').textContent, /sound isolation/);
     await act(async () => document.querySelector('.mode-card[data-mode="value"]').click());
     assert.ok(document.querySelector('.best-match'));
@@ -350,6 +355,36 @@ test('three-page journey preserves imports, supports all modes, removes and repl
       await new Promise(resolve => setTimeout(resolve, 20));
     });
     assert.match(document.querySelector('.recall-research [role="status"]').textContent, /Lookup unavailable/);
+
+    // The actual app must show category evidence, not an amenity-count winner.
+    await go('compare');
+    await act(async () => document.querySelector('.section-heading button').click());
+    const references = comfortReferenceCars();
+    let referenceIndex = 0;
+    globalThis.fetch = async (url, options) => {
+      if (String(url).startsWith('/data/fuel/')) return Response.json({ columns: [], rows: [] });
+      if (url === '/api/model-specs') {
+        const input = JSON.parse(options.body);
+        const car = references.find(car => car.make === input.make && car.model === input.model);
+        return Response.json({ modelSpecs: car.enrichment.modelSpecs });
+      }
+      return Response.json({ vehicle: { ...references[referenceIndex], images: [], legacyItemId: `${++referenceIndex}88888888888` } });
+    };
+    for (let index = 1; index <= 4; index++) {
+      await change('#listing-url', `https://www.ebay.ca/itm/${index}88888888888`);
+      await submit();
+    }
+    await go('decide');
+    await act(async () => document.querySelector('[data-mode="comfort"]').click());
+    assert.equal(document.querySelector('.best-match h2').textContent, '2025 Mercedes-Benz S-Class');
+    assert.match(document.querySelector('.evidence-coverage').textContent, /35% evidence coverage.*Provisional/);
+    assert.match(document.querySelector('.ranking-row .capability-details').textContent, /Ride quality.*5 \/ 5.*Cabin quietness.*Seat comfort.*Passenger space/s);
+    assert.ok(document.querySelector('.capability-details a[href="https://www.caranddriver.com/mercedes-maybach/s580-s680-2025"]'));
+    assert.ok(document.querySelector('.mode-grid [data-mode="performance"]'));
+    await act(async () => document.querySelector('[data-mode="value"]').click());
+    assert.match(document.querySelector('.mode-explanation').textContent, /Best Value emphasizes capability for the asking price; Balanced emphasizes overall capability/);
+    await act(async () => document.querySelector('[data-mode="balanced"]').click());
+    assert.match(document.querySelector('.mode-explanation').textContent, /Balanced emphasizes overall capability/);
 
   } finally {
     await act(async () => root.unmount());

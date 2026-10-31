@@ -1,9 +1,8 @@
 // Pure functions: no network, storage, mutation, or React dependency.
 import { resolveMileage, numeric as number } from './vehicle-data.js';
-import { extractVehicleSpecs, specEvidenceLabel } from './vehicle-specs.js';
+import { extractVehicleSpecs } from './vehicle-specs.js';
 import { sellerText } from './mileage.js';
-import { annualFuelCost } from './fuel-data.js';
-import { researchGuidance } from './model-research.js';
+import { rankCapabilities } from './capability-scoring.js';
 export const DEFAULT_PRIORITIES = { price: 50, age: 30, mileage: 20 };
 export const CRITERIA = [
   { key: 'price', label: 'Purchase price' },
@@ -79,77 +78,14 @@ export function rankCars(cars, priorities = DEFAULT_PRIORITIES, currentYear = ne
 }
 
 export const DECISION_MODES = [
-  { id: 'value', title: 'BEST VALUE', description: 'Price, age and mileage, with mechanical caution first.', weights: { price: 45, age: 25, mileage: 30 } },
-  { id: 'cost', title: 'AFFORDABILITY', description: 'Asking price and supported fuel-cost scenarios. Always review disclosed concerns.', weights: { price: 80, fuel: 20 } },
-  { id: 'practical', title: 'EVERYDAY PRACTICALITY', description: 'Age, mileage, seating needs, body preference, fuel and amenities.', weights: { age: 35, mileage: 45, features: 20, seats: 20, body: 20, fuel: 20 } },
-  { id: 'performance', title: 'PERFORMANCE', description: 'Supported power and torque, plus sourced model driving impressions.', weights: { power: 70, torque: 30 } },
-  { id: 'comfort', title: 'COMFORT & FEATURES', description: 'Reported and sourced standard amenities, with model ride-comfort context.', weights: { features: 100 } },
-  { id: 'balanced', title: 'BALANCED CHOICE', description: 'Price, age and mileage, plus supported fuel, seating, amenities and power.', weights: { price: 1, age: 1, mileage: 1, fuel: 0.6, features: 0.6, seats: 0.3, power: 0.3 } },
+  { id: 'value', title: 'BEST VALUE', description: 'Supported capability for the asking price.', weights: { capability: 50, price: 35, age: 10, mileage: 5 } },
+  { id: 'cost', title: 'AFFORDABILITY', description: 'Asking price and supported fuel-cost scenarios.', weights: { price: 80, fuel: 20 } },
+  { id: 'practical', title: 'EVERYDAY PRACTICALITY', description: 'Seating needs, passenger space, body preference and usable cargo capacity.' },
+  { id: 'performance', title: 'PERFORMANCE', description: 'Acceleration, power-to-weight and supported engine output.' },
+  { id: 'comfort', title: 'COMFORT', description: 'Ride quality, cabin quietness, seats and passenger space.' },
+  { id: 'balanced', title: 'BALANCED CHOICE', description: 'Overall capability and everyday usability, with less emphasis on price.', weights: { capability: 75, affordability: 15, age: 5, mileage: 5 } },
 ];
 export const DEFAULT_SCENARIO = { annualKm: 15000, pricePerLitre: 1.70, minSeats: 5, bodyType: '' };
 export function rankDecisionMode(cars, modeId, year = new Date().getFullYear(), scenario = DEFAULT_SCENARIO) {
-  const mode = DECISION_MODES.find(m => m.id === modeId) || DECISION_MODES[0];
-  const vehicleSpecs = cars.map(extractVehicleSpecs);
-  const features = vehicleSpecs.map(record => Object.fromEntries(Object.entries(record.features).map(([label, item]) => [label, item.value])));
-  // Missing mentions stay unknown. Counts describe documentation, not installed equipment.
-  const commonFeatures = features.length ? Object.keys(features[0]).filter(key => features.every(f => f[key] !== null)) : [];
-  const sameFuel = cars.length > 0 && cars.every(car => car.enrichment?.fuel?.status === 'matched' && car.enrichment.fuel.fuel === cars[0].enrichment.fuel.fuel);
-  const criteria = [...CRITERIA, { key: 'power', label: 'Supported power (hp)', higherBetter: true }, { key: 'torque', label: 'Supported torque (Nm)', higherBetter: true }, { key: 'features', label: 'Documented amenities', higherBetter: true }, { key: 'seats', label: `Meets ${scenario.minSeats}-seat need`, higherBetter: true }, { key: 'body', label: `Preferred body: ${scenario.bodyType || 'none'}`, higherBetter: true }, { key: 'fuel', label: 'Annual fuel cost (scenario)' }];
-  const weights = { ...mode.weights, body: scenario.bodyType ? mode.weights.body || 0 : 0 };
-  const result = rankCars(cars, weights, year, {
-    priceOnly: mode.id === 'cost', criteria,
-    yearForCar: car => vehicleSpecs[cars.indexOf(car)].specs.year.value,
-    extraValues: car => {
-      const index = cars.indexOf(car), specs = vehicleSpecs[index].specs;
-      return { power: specs.horsepower.value, torque: specs.torque.value,
-        features: commonFeatures.length ? commonFeatures.filter(key => features[index][key] === true).length : null,
-        seats: specs.seats.value == null || !Number.isFinite(scenario.minSeats) || scenario.minSeats < 1 ? null : Number(specs.seats.value >= scenario.minSeats),
-        body: specs.bodyType.value == null || !scenario.bodyType ? null : Number(specs.bodyType.value === scenario.bodyType),
-        fuel: sameFuel ? annualFuelCost(car.enrichment.fuel, scenario) : null };
-    },
-  });
-  const research = cars.map(car => {
-    const guidance = researchGuidance(car, mode.id);
-      const caution = detectWarnings(car).length > 0;
-    return { car, guidance, caution, worthTestDriving: !caution && ['comfort', 'practical', 'performance'].includes(mode.id) && guidance.claims.some(c => c.tone === 'positive' && !c.contextOnly) };
-  });
-  for (const entry of result.ranked) {
-    const specs = vehicleSpecs[cars.indexOf(entry.car)].specs;
-    for (const factor of entry.breakdown) {
-      const field = { age: 'year', power: 'horsepower', torque: 'torque', seats: 'seats', body: 'bodyType' }[factor.key];
-      const usesModelFeatures = factor.key === 'features' && commonFeatures.some(key => vehicleSpecs[cars.indexOf(entry.car)].features[key].status === 'model-reference');
-      factor.evidenceLabel = factor.key === 'fuel' ? 'NRCan configuration reference + your scenario' : field ? specEvidenceLabel(specs[field]) : usesModelFeatures ? 'Includes typical model standard equipment · cited sources' : factor.key === 'mileage' && resolveMileage(entry.car).assumedUnit ? 'Seller reading · kilometres assumed' : 'Seller-reported';
-    }
-  }
-  const researchComparable = result.totalWeight > 0 && research.length > 0 && research.every(item => item.guidance.assessment?.value != null);
-  const researchCriterion = { key: 'research', label: 'Sourced model assessment', higherBetter: true, weight: 25, active: researchComparable,
-    reason: researchComparable ? 'Measurable factors contribute 75%; sourced model assessments contribute 25%.' : 'Requires measurable factors and a sourced category assessment for every contender.' };
-  if (researchComparable) {
-    const measuredWeight = result.totalWeight;
-    result.criteria = result.criteria.map(c => ({ ...c, weight: c.active ? c.weight / measuredWeight * 75 : c.weight }));
-    for (const entry of result.ranked) {
-      const assessment = research.find(item => item.car === entry.car).guidance.assessment;
-      entry.breakdown = entry.breakdown.map(factor => ({ ...factor, weight: factor.share * 75, share: factor.share * 0.75, contribution: factor.contribution * 0.75 }));
-      entry.values.research = assessment.value;
-      const points = assessment.value * 50;
-      entry.breakdown.push({ ...researchCriterion, value: assessment.value, points, share: 0.25, contribution: points * 0.25, evidenceLabel: `Review-based model context · ${assessment.assessment}` });
-      entry.score = Math.round(entry.breakdown.reduce((sum, f) => sum + f.contribution, 0) * 100) / 100;
-    }
-    result.ranked.sort((a, b) => Number(a.identityMismatch) - Number(b.identityMismatch) || (mode.id === 'cost' ? 0 : Number(a.warnings.length > 0) - Number(b.warnings.length > 0)) || b.score - a.score);
-    result.ranked.forEach((entry, index) => {
-      const previous = result.ranked[index - 1];
-      entry.rank = previous && previous.identityMismatch === entry.identityMismatch && (mode.id === 'cost' || Boolean(previous.warnings.length) === Boolean(entry.warnings.length)) && previous.score === entry.score ? previous.rank : index + 1;
-    });
-    result.best = result.ranked.filter(entry => !entry.identityMismatch && (mode.id === 'cost' || !entry.warnings.length) && entry.rank === 1);
-    result.totalWeight = 100;
-  }
-  result.criteria.push(researchCriterion);
-  return { ...result, mode, commonFeatures, scenario, research,
-    researchWeight: researchComparable ? 0.25 : 0,
-    basis: result.totalWeight ? 'supported-specs' : research.some(e => e.guidance.claims.length) ? 'model-research-only' : 'insufficient',
-    limitation: mode.id === 'performance' ? 'Ranks comparable horsepower and torque, including cited typical model specifications when identified. These describe original ratings, not measured current output, acceleration or handling. Ranges and configuration alternatives are excluded.'
-      : mode.id === 'comfort' ? 'Counts documented amenities and cited standard model equipment. A lower count can mean less documentation, not fewer installed features. Typical equipment is not verified on this used car. Optional, unknown and conflicting equipment is excluded. This is not a ride-comfort rating.'
-        : mode.id === 'practical' ? 'Seating and body scores reflect your stated needs. Age, comparable mileage, documented amenities and matched fuel data are weighted only when everyone has evidence.'
-          : mode.id === 'cost' ? 'An affordability scenario, not total ownership cost. Mechanical cautions remain visible but do not change this price/fuel ordering. No repair or insurance costs are estimated.' : 'Preference fit within this shortlist, not a reliability, safety or market-value rating. Unsupported factors are excluded for everyone.',
-  };
+  return rankCapabilities(cars, DECISION_MODES.find(mode => mode.id === modeId) || DECISION_MODES[0], year, scenario, detectWarnings);
 }

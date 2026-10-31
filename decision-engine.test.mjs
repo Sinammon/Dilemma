@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { ratedCar } from './test-data/scoring-fixtures.mjs';
 import { rankCars, mileageKm, detectWarnings, rankDecisionMode, DECISION_MODES } from './src/decision-engine.js';
 
 // All fixtures are fictional; no eBay listing data is saved.
@@ -90,41 +91,46 @@ test('warning evidence, supported variants, negation and repair handling', () =>
   assert.equal(detectWarnings({ itemSpecifics: [{ name: 'Engine', value: 'Problems' }] })[0].evidence, 'Engine Problems');
 });
 
-test('six modes are deterministic and cost mode explicitly differs from mechanical-first modes', () => {
+test('six modes are deterministic and purchase warnings stay separate from category scores', () => {
   assert.equal(DECISION_MODES.length, 6);
-  const cheap = car('C', 100, 2024, '500', 'km', { description: 'Needs repairs. Not running.' });
-  assert.equal(rankDecisionMode([cheap, pair[1]], 'cost').best[0].car.legacyItemId, 'C');
-  for (const mode of ['value', 'balanced', 'practical']) {
-    assert.equal(rankDecisionMode([cheap, pair[1]], mode).best[0].car.legacyItemId, 'B');
-    assert.equal(rankDecisionMode([cheap], mode).best.length, 0);
+  const cars = [ratedCar('A', 5), ratedCar('B', 3)];
+  cars[0].description += ' Needs repairs. Not running.';
+  for (const mode of DECISION_MODES) {
+    const result = rankDecisionMode(cars, mode.id);
+    assert.deepEqual(result, rankDecisionMode(cars, mode.id));
+    assert.equal(result.ranked.find(e => e.car === cars[0]).warnings.length, 2);
   }
-  for (const mode of DECISION_MODES) assert.deepEqual(rankDecisionMode(pair, mode.id), rankDecisionMode(pair, mode.id));
-  assert.equal(detectWarnings({ description: 'Sold as is.' }).length, 0);
-  assert.equal(detectWarnings({ description: 'Needs repairs.' })[0].label, 'Repairs disclosed');
+  assert.equal(rankDecisionMode(cars, 'comfort').best[0].car.legacyItemId, 'A');
+  assert.equal(rankDecisionMode(cars, 'comfort').best[0].reviewRequired, true);
 });
-test('balanced numerical example, preference changes, and ties remain explainable', () => {
-  const value = rankDecisionMode(pair, 'value', 2026);
-  assert.equal(value.best[0].score, 60); // 100*.45 + 0*.25 + 50*.30
-  const balanced = rankDecisionMode(pair, 'balanced', 2026);
-  assert.equal(balanced.best.length, 2);
-  assert.equal(balanced.best[0].score, 50);
+
+test('capability and purchase factors match the new value and balanced hand calculation', () => {
+  const cars = pair.map(car => ({ ...car, description: '200 hp. 300 Nm.' }));
+  const value = rankDecisionMode(cars, 'value', 2026);
+  assert.equal(value.best[0].score, 62.5); // capability 25 + price 35 + age 0 + mileage 2.5
+  const balanced = rankDecisionMode(cars, 'balanced', 2026);
+  assert.equal(balanced.best[0].score, 55); // capability 37.5 + affordability 15 + age 0 + mileage 2.5
+  assert.equal(balanced.provisional, true);
 });
+
 test('performance uses compatible power only, not engine size, and abstains on missing evidence', () => {
   const power = (base, value) => ({ ...base, itemSpecifics: [{ name: 'Power', value }] });
   assert.equal(rankDecisionMode(pair, 'performance').best.length, 0);
   assert.equal(rankDecisionMode([power(pair[0], '200 hp'), power(pair[1], '100 kW')], 'performance').best[0].car.legacyItemId, 'A');
-  assert.equal(rankDecisionMode([power(pair[0], '200 hp'), pair[1]], 'performance').totalWeight, 0);
+  const incomplete = rankDecisionMode([power(pair[0], '200 hp'), pair[1]], 'performance');
+  assert.equal(incomplete.ranked[1].score, null);
+  assert.equal(incomplete.provisional, true);
 });
-test('comfort scores only common explicitly known amenities and never model-based assumptions', () => {
+test('comfort cannot be established from amenity counts alone', () => {
   const cars = [{ ...pair[0], description: 'Heated seats. Leather seats.' }, { ...pair[1], description: 'No heated seats.' }];
   const result = rankDecisionMode(cars, 'comfort');
-  assert.deepEqual(result.commonFeatures, ['Heated seats']);
-  assert.equal(result.best[0].car.legacyItemId, 'A');
-  assert.equal(result.best[0].score, 100);
-  assert.equal(rankDecisionMode(pair, 'comfort').best.length, 0);
+  assert.equal(result.best.length, 0);
+  assert.ok(result.ranked.every(entry => entry.score === null));
+  assert.equal(result.evidenceCoverage, 0);
 });
+
 test('seller distance overrides structured mileage in every mode', () => {
-  const result = rankDecisionMode([pair[0], { ...pair[1], description: 'Odometer 100000 miles.' }], 'balanced');
+  const result = rankDecisionMode([{ ...pair[0], description: '200 hp.' }, { ...pair[1], description: 'Odometer 100000 miles. 200 hp.' }], 'balanced');
   assert.equal(result.criteria.find(c => c.key === 'mileage').active, true);
   assert.equal(result.ranked.every(c => c.breakdown.some(b => b.key === 'mileage')), true);
 });

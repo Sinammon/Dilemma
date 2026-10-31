@@ -1,22 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { decisionSummary, entrySummary, keyFacts } from './src/decision-summary.js';
+import { ratedCar } from './test-data/scoring-fixtures.mjs';
 import { makeDemoCars } from './src/demo-cars.js';
 import { researchForCar } from './src/model-research.js';
 const cars = makeDemoCars();
 
-test('sparse comfort and performance use a labeled value starting point without inventing a priority score', () => {
+test('sparse comfort and performance retain their category with guidance and no substitute score', () => {
   const before = structuredClone(cars);
   for (const mode of ['comfort', 'performance']) {
     const summary = decisionSummary(cars, mode, 2026);
-    assert.equal(summary.kind, 'starting-point');
+    assert.equal(summary.kind, 'guidance');
     assert.equal(summary.requested.totalWeight, 0);
     assert.equal(summary.requested.best.length, 0);
-    assert.ok(summary.ranking.best.length);
-    const notes = entrySummary(summary, summary.ranking.best[0]);
-    assert.match(notes.explanation, /starting point/);
-    assert.match(notes.tradeoff, mode === 'comfort' ? /test drive/ : /Performance is unverified/);
-    assert.ok(notes.researchClaim.sources.every(s => s.url.startsWith('https:')));
+    assert.equal(summary.ranking.best.length, 0);
+    const notes = entrySummary(summary, summary.ranking.ranked[0]);
+    assert.match(notes.explanation, /No price-based substitute/);
+    assert.ok(notes.reasons.every(reason => !reason.source || reason.source.url.startsWith('https:')));
   }
   assert.deepEqual(cars, before);
 });
@@ -24,12 +24,13 @@ test('sparse comfort and performance use a labeled value starting point without 
 test('condition and identity concerns never disappear through the fallback', () => {
   const bad = cars.map(car => ({ ...car, description: 'Engine problems. Not running.' }));
   const summary = decisionSummary(bad, 'comfort', 2026);
-  assert.equal(summary.kind, 'review');
+  assert.equal(summary.kind, 'guidance');
+  assert.ok(summary.ranking.ranked.every(entry => entry.warnings.length));
   assert.equal(summary.ranking.best.length, 0);
-  assert.match(entrySummary(summary, summary.ranking.ranked[0]).explanation, /Resolve/);
+  assert.match(entrySummary(summary, summary.ranking.ranked[0]).explanation, /No price-based substitute/);
   const mismatch = decisionSummary(cars.map(car => ({ ...car, enrichment: { vin: { mismatches: [{ field: 'Year' }] } } })), 'cost', 2026);
   assert.equal(mismatch.ranking.best.length, 0);
-  assert.equal(mismatch.kind, 'review');
+  assert.equal(mismatch.kind, 'guidance');
 });
 
 test('completely missing evidence stays unranked and equal matches stay equal', () => {
@@ -37,7 +38,7 @@ test('completely missing evidence stays unranked and equal matches stay equal', 
   assert.equal(empty.kind, 'guidance');
   assert.ok(empty.ranking.ranked.every(e => e.score === null));
   assert.equal(empty.ranking.best.length, 0);
-  const equal = decisionSummary([cars[0], { ...cars[0], legacyItemId: 'second' }], 'value', 2026);
+  const equal = decisionSummary([ratedCar('first'), ratedCar('second')], 'value', 2026);
   assert.equal(equal.shared, true);
   assert.match(entrySummary(equal, equal.ranking.best[0]).explanation, /equal match/);
   assert.equal(decisionSummary([], 'value', 2026).kind, 'empty');

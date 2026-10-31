@@ -1,10 +1,10 @@
 import { sellerText } from './mileage.js';
-import { CONFIG_FIELDS, MODEL_FIELDS, modelSpecsInput, usableModelFinding } from '../shared/model-specs.js';
+import { CONFIG_FIELDS, MODEL_FIELDS, modelSpecsInput, usableModelFinding, modelFieldValue } from '../shared/model-specs.js';
 
 export const normalized = value => String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const number = value => /^\d+(?:\.\d+)?$/.test(String(value).trim()) ? Number(value) : null;
 const positive = value => number(value) > 0 ? number(value) : null;
-export const FIELD_LABELS = { year: 'Year', make: 'Make', model: 'Model', trim: 'Trim', market: 'Original market', displacement: 'Engine displacement (L)', engineType: 'Engine configuration', induction: 'Induction', cylinders: 'Cylinders', horsepower: 'Power (hp)', torque: 'Torque (Nm)', transmission: 'Transmission', transmissionSpeeds: 'Transmission speeds', transmissionCode: 'Transmission code', drivetrain: 'Drivetrain', fuelType: 'Fuel type', bodyType: 'Body type', seats: 'Seating capacity' };
+export const FIELD_LABELS = { year: 'Year', make: 'Make', model: 'Model', trim: 'Trim', market: 'Original market', displacement: 'Engine displacement (L)', engineType: 'Engine configuration', induction: 'Induction', cylinders: 'Cylinders', horsepower: 'Power (hp)', torque: 'Torque (Nm)', curbWeightKg: 'Curb weight (kg)', zeroTo100KphSeconds: '0–100 km/h (seconds)', zeroTo60MphSeconds: '0–60 mph (seconds)', transmission: 'Transmission', transmissionSpeeds: 'Transmission speeds', transmissionCode: 'Transmission code', drivetrain: 'Drivetrain', fuelType: 'Fuel type', bodyType: 'Body type', seats: 'Seating capacity' };
 // A seating difference still requires review, but does not change model identity
 // or engine/body configuration. Never let research replace that seller value.
 export const researchVinMismatches = car => (car.enrichment?.vin?.mismatches || []).filter(item => item.field !== FIELD_LABELS.seats);
@@ -28,7 +28,8 @@ function normalize(key, value) {
     const n = positive(text);
     return Number.isInteger(n) && (key !== 'year' || n >= 1886 && n <= new Date().getFullYear() + 1) && (key !== 'seats' || n <= 100) ? n : null;
   }
-  if (['displacement', 'horsepower', 'torque'].includes(key)) {
+  if (['displacement', 'horsepower', 'torque', 'curbWeightKg', 'zeroTo100KphSeconds', 'zeroTo60MphSeconds'].includes(key)) {
+    if (['curbWeightKg', 'zeroTo100KphSeconds', 'zeroTo60MphSeconds'].includes(key)) return modelFieldValue(key, value);
     const n = positive(value);
     return n == null ? null : key === 'displacement' ? Math.round(n * 10) / 10 : n;
   }
@@ -79,6 +80,8 @@ const aliases = {
   displacement: ['engine displacement', 'engine displacement (l)', 'displacement (l)', 'engine size', 'engine size (l)', 'engine'],
   engineType: ['engine configuration', 'engine type', 'engine'], cylinders: ['cylinders', 'number of cylinders', 'engine cylinders'],
   horsepower: ['horsepower', 'horse power', 'power', 'engine power', 'power (hp)', 'horsepower (hp)'], torque: ['torque', 'engine torque', 'torque (nm)'],
+  curbWeightKg: ['curb weight (kg)', 'kerb weight (kg)', 'curb weight', 'kerb weight', 'base curb weight (pounds)', 'curb weight (lbs)'],
+  zeroTo100KphSeconds: ['0–100 km/h (seconds)', '0-100 km/h (seconds)'], zeroTo60MphSeconds: ['0–60 mph (seconds)', '0-60 mph (seconds)'],
   transmission: ['transmission', 'transmission type'], transmissionSpeeds: ['transmission speeds', 'number of gears'],
   drivetrain: ['drivetrain', 'drive type', 'drive system'], fuelType: ['fuel type', 'fuel'],
   bodyType: ['body type', 'body style'], seats: ['seating capacity', 'seats', 'number of seats'],
@@ -100,6 +103,13 @@ function patterns(text, structuredKey) {
   addMatches(/(?<![\w.])(\d{3,5})\s*cc\b/gi, 'displacement', m => Number(m[1]) / 1000);
   addMatches(/(?<![\w.,+\-])(\d{1,4}(?:\.\d+)?)\s*[-–]?\s*(hp|bhp|horse\s?power|kW|PS)\b/gi, 'horsepower', m => Number(m[1]) * (/kw/i.test(m[2]) ? 1.34102209 : /^ps$/i.test(m[2]) ? 0.98632007 : 1));
   addMatches(/\b(?:horse\s?power|hp|bhp)\s*(?::|=|is)\s*(\d{1,4}(?:\.\d+)?)(?![\w.])/gi, 'horsepower');
+  // Require the curb/kerb label: gross, dry and payload weights are not comparable.
+  addMatches(/\b(?:base )?(?:curb|kerb) weight\s*(?:\((kg|kilograms?|lbs?\.?|pounds?)\))?\s*[:=]?\s*([\d,]+(?:\.\d+)?)\s*(kg|kilograms?|lbs?\.?|pounds?)?/gi, 'curbWeightKg', m => {
+    const unit = m[3] || m[1];
+    return unit ? Number(m[2].replaceAll(',', '')) * (/lb|pound/i.test(unit) ? 0.45359237 : 1) : null;
+  });
+  addMatches(/\b0\s*[-–—]\s*100\s*(?:km\/?h|kph)\s*(?:\((?:seconds?|sec|s)\))?\s*(?::|=|in)?\s*(\d+(?:\.\d+)?)\s*(?:seconds?|sec\b|s\b)?/gi, 'zeroTo100KphSeconds');
+  addMatches(/\b0\s*[-–—]\s*60\s*mph\s*(?:\((?:seconds?|sec|s)\))?\s*(?::|=|in)?\s*(\d+(?:\.\d+)?)\s*(?:seconds?|sec\b|s\b)?/gi, 'zeroTo60MphSeconds');
   addMatches(/(?<![\w.,+\-])(\d{1,4}(?:\.\d+)?)\s*(N\s*[.·•\-–]?\s*m|newton[- ]met(?:er|re)s?|lbs?\.?\s*[.·•\-–]?\s*ft\.?|ft\.?\s*[.·•\-–]?\s*lbs?\.?|pound[- ]feet|foot[- ]pounds?)\b/gi, 'torque', m => Number(m[1]) * (/lb|pound|feet/i.test(m[2]) ? 1.355817948 : 1));
   addMatches(/\b(?:Canadian|Canada|US|USA|United States)[- ](?:market|spec(?:ification)?s?)\b/gi, 'market', m => /^(?:canada|canadian)/i.test(m[0]) ? 'CA' : 'US');
   addMatches(/\b(?:V|I|inline[- ]?|flat[- ]?|boxer[- ]?)([34568]|10|12)\b/gi, 'cylinders');
@@ -115,7 +125,7 @@ function patterns(text, structuredKey) {
   addMatches(/\b(?:seating capacity|number of seats)\s*(?::|is|=)?\s*(\d{1,2})\b/gi, 'seats');
   if (structuredKey) {
     if (structuredKey === 'horsepower' && /^(?:\d+(?:\.\d+)?)$/.test(text)) return values; // A bare number lacks a trustworthy power unit.
-    if (!['horsepower', 'torque', 'displacement'].includes(structuredKey)) push(structuredKey, text, text);
+    if (!['horsepower', 'torque', 'displacement', 'curbWeightKg', 'zeroTo100KphSeconds', 'zeroTo60MphSeconds'].includes(structuredKey)) push(structuredKey, text, text);
     if (structuredKey === 'transmission' && /^(?:A[SMV]?|M)\d+$/i.test(text)) {
       push('transmissionCode', text.toUpperCase(), text);
       push('transmissionSpeeds', text.match(/\d+/)[0], text);
@@ -157,6 +167,7 @@ export function extractVehicleSpecs(car) {
       if (unit && labelledNumber) for (const item of patterns(`${labelledNumber[1]} ${unit}`)) if (item.key === key) add(item.key, item.value, `eBay: ${aspect.name}`, 'seller-specifics', `${aspect.name}: ${value}`);
       const explicitUnit = key === 'horsepower' && /^(?:horse ?power|power \(hp\)|horsepower \(hp\))$/.test(field) || key === 'displacement' && /\(l\)$/.test(field) || key === 'torque' && /\(nm\)$/.test(field);
       if (explicitUnit && positive(value)) add(key, normalize(key, value), `eBay: ${aspect.name}`, 'seller-specifics', String(value));
+      if (['curbWeightKg', 'zeroTo100KphSeconds', 'zeroTo60MphSeconds'].includes(key)) for (const item of patterns(`${aspect.name}: ${value}`)) if (item.key === key) add(key, item.value, `eBay: ${aspect.name}`, 'seller-specifics', item.quote);
       for (const item of patterns(String(value ?? ''), key)) add(item.key, item.value, `eBay: ${aspect.name}`, 'seller-specifics', item.quote);
     }
   }

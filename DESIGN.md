@@ -171,7 +171,7 @@ The app's usable content width is capped at 1440px inside a shell with 32px side
 
 The spacing scale begins at 4px. Workspaces use compact 20?32px groups, separated by larger section intervals. Homepage sections use the widest rhythm; their mobile intervals contract. Long explanatory introductions are limited to approximately 65?70 characters per line where the component permits.
 
-Vehicle collections use one column per contender at wide widths, two columns at or below 1100px, and one below 768px. Decision priorities use six columns, then three, then two. Photo/text decision results stack on mobile. Research grids use automatic columns with minimum widths that collapse to the available width.
+Vehicle collections use one column per contender at wide widths, two columns at or below 1100px, and one below 768px. Five primary decision priorities use five columns, then two; Practicality remains in More priorities. Comfort and performance evidence use two columns, stacking to one on mobile. Evidence coverage and provisional labels stay beside the result. Photo/text decision results stack on mobile. Research grids use automatic columns with minimum widths that collapse to the available width.
 
 Comparison tables retain a sticky first column inside a labelled local scrolling region, with a scroll hint. Source strings and names wrap. Preview slides share a CSS-grid area and grow naturally for taller content; minimum heights provide a steady frame without fixing a clipping height. Horizontal preview overflow remains local to the slide.
 
