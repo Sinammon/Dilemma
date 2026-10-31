@@ -41,6 +41,33 @@ test('API forwards marketplace and quiet mode, returns plain text without tokens
   assert.ok(!JSON.stringify(body).includes('synthetic-token'));
 });
 
+test('local model-specs endpoint returns research without eBay authentication', async t => {
+  const post = await start(t, { auth: () => { throw new Error('No eBay authentication needed'); }, modelSpecsLookup: async input => ({ status: 'matched', fields: {}, configuration: input }) });
+  const response = await post({ year: 2018, make: 'Honda', model: 'Civic', fields: ['horsepower'], vin: 'private' }, {}, 'POST', '/api/model-specs');
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.modelSpecs.configuration.vin, undefined);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+});
+
+test('disconnecting a local research request aborts the upstream lookup signal', async t => {
+  let started, cancelled;
+  const startSignal = new Promise(resolve => { started = resolve; });
+  const cancelledSignal = new Promise(resolve => { cancelled = resolve; });
+  const server = createApp({ modelSpecsLookup: async (_input, { signal }) => new Promise(resolve => {
+    signal.addEventListener('abort', () => { cancelled(); resolve({ status: 'unavailable', fields: {} }); }, { once: true });
+    started();
+  }) });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
+  const controller = new AbortController();
+  const response = fetch(`http://127.0.0.1:${server.address().port}/api/model-specs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ year: 2018, make: 'Honda', model: 'Civic', fields: ['horsepower'] }), signal: controller.signal });
+  await startSignal;
+  controller.abort();
+  await assert.rejects(response, { name: 'AbortError' });
+  await cancelledSignal;
+});
+
 test('upstream errors become useful messages without leaking details', async t => {
   for (const [message, status] of [['HTTP 404: private payload',404], ['HTTP 429: private payload',429], ['OAuth token failed: private payload',503], ['HTTP 403: private payload',503], ['network failure: private payload',502]]) {
     await t.test(String(status) + message.slice(0,9), async t => {

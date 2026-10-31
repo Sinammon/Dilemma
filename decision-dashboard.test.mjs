@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { createServer } from 'vite';
 import { readFile } from 'node:fs/promises';
+import { DISCRIMINATORS } from './shared/model-specs.js';
 
 test('three-page journey preserves imports, supports all modes, removes and replaces cars, and handles unknown data', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost', pretendToBeVisual: true });
@@ -28,6 +29,17 @@ test('three-page journey preserves imports, supports all modes, removes and repl
   try {
     const { default: App } = await vite.ssrLoadModule('/src/App.jsx');
     await act(async () => root.render(React.createElement(App)));
+    const menuButton = document.querySelector('.nav-menu-toggle');
+    assert.equal(menuButton.getAttribute('aria-expanded'), 'false');
+    await act(async () => menuButton.click());
+    assert.equal(menuButton.getAttribute('aria-expanded'), 'true');
+    assert.ok(document.querySelector('#primary-navigation.is-open'));
+    await act(async () => menuButton.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    assert.equal(menuButton.getAttribute('aria-expanded'), 'false');
+    assert.equal(document.activeElement, menuButton, 'Escape returns focus to the disclosure trigger');
+    await act(async () => menuButton.click());
+    await act(async () => document.querySelector('#primary-navigation a').click());
+    assert.equal(menuButton.getAttribute('aria-expanded'), 'false', 'selecting navigation closes the mobile menu');
     assert.match(document.querySelector('h1').textContent, /Find the right car/);
     assert.equal(document.querySelector('.mode-grid'), null);
     assert.equal(document.querySelectorAll('.preview-vehicle').length, 4);
@@ -63,10 +75,10 @@ test('three-page journey preserves imports, supports all modes, removes and repl
       document.querySelector('form').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
       await new Promise(resolve => setTimeout(resolve, 10));
     });
-    const add = async (id, price, year, description = '', unit = 'km') => {
+    const add = async (id, price, year, description = '', unit = 'km', raw = '100000') => {
       globalThis.fetch = async () => new Response(JSON.stringify({ vehicle: {
         legacyItemId: id, title: `SELLER HEADLINE ${id}`, make: 'Example', model: id.slice(0, 1), priceCAD: { value: String(price), currency: 'CAD' }, year: String(year),
-        mileage: { raw: '100000', unit }, images: ['https://images.example.test/front.jpg', 'https://images.example.test/rear.jpg'], itemSpecifics: [], description, sourceUrl: `https://www.ebay.ca/itm/${id}`,
+        mileage: raw == null ? null : { raw, unit }, images: ['https://images.example.test/front.jpg', 'https://images.example.test/rear.jpg'], itemSpecifics: [], description, sourceUrl: `https://www.ebay.ca/itm/${id}`,
       } }), { headers: { 'Content-Type': 'application/json' } });
       await change('#listing-url', `https://www.ebay.ca/itm/${id}`);
       await submit();
@@ -75,12 +87,12 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     await submit();
     assert.match(document.querySelector('#import-error').textContent, /eBay.ca/);
     assert.notEqual(window.location.hash, '#compare');
-    await add('111111111111', 10000, 2016, 'Odometer: 100k kms. Heated seats.', null);
+    await add('111111111111', 10000, 2016, 'Odometer: 100000 kms. Heated seats.', null, null);
     assert.equal(window.location.hash, '#compare');
     assert.equal(document.querySelector('h1').textContent, 'Compare Your Vehicles');
     assert.equal(document.querySelector('.vehicle-name').textContent, '2016 Example 1');
     assert.match(document.querySelector('.car-meta').textContent, /100000 km/);
-    assert.match(document.querySelector('.car-meta').textContent, /Seller-reported unit/);
+    assert.doesNotMatch(document.querySelector('.car-meta').textContent, /Unit unknown|conflict/);
     assert.equal(document.querySelector('.vehicle-image img').getAttribute('src'), 'https://images.example.test/front.jpg');
     await act(async () => document.querySelector('.photo-next').click());
     assert.equal(document.querySelector('.vehicle-image img').getAttribute('src'), 'https://images.example.test/rear.jpg');
@@ -93,7 +105,7 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     assert.equal(document.querySelector('.mode-grid'), null);
     await add('222222222222', 20000, 2021, 'No heated seats.', null);
     assert.equal(document.querySelectorAll('.car-card').length, 2);
-    assert.match(document.querySelector('tbody').textContent, /Unit unknown/);
+    assert.match(document.querySelector('tbody').textContent, /km assumed/);
     let calls = 0;
     globalThis.fetch = async () => { calls++; throw new Error('Should not fetch duplicate'); };
     await change('#listing-url', 'https://www.ebay.ca/itm/111111111111');
@@ -122,6 +134,7 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     assert.equal(document.querySelector('.best-match h2').textContent, '2016 Example 1');
     await go('compare');
     await add('333333333333', 100, 2025, 'Engine problems. Coolant leak. Not running.');
+    assert.match(document.querySelector('.car-card:last-child .warning-details').textContent, /Engine concern.*Coolant leak/s, 'condition warnings remain visible while evidence sections are collapsed');
     await go('decide');
     await act(async () => document.querySelector('.mode-card[data-mode="cost"]').click());
     assert.equal(document.querySelector('.best-match h2').textContent, '2025 Example 3');
@@ -160,6 +173,7 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     const pendingVin = new Promise(resolve => { finishVin = resolve; });
     globalThis.fetch = async input => {
       if (input === '/api/vehicle-data') return pendingVin;
+      if (input === '/api/model-specs') return Response.json({ modelSpecs: { status: 'not-configured', fields: {} } });
       if (String(input).startsWith('/data/fuel/')) return Response.json({ columns: [], rows: [] });
       importCount++;
       return Response.json({ vehicle: { legacyItemId: '666666666666', year: importCount === 1 ? '2003' : '2020', make: 'Example', model: importCount === 1 ? 'Original' : 'Replacement', vin: importCount === 1 ? '1HGCM82633A004352' : null, images: [], itemSpecifics: [] } });
@@ -177,8 +191,71 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     });
     assert.equal(document.querySelectorAll('.car-card').length, 1);
     assert.equal(document.querySelector('.vehicle-name').textContent, '2020 Example Replacement');
-    // Demo is explicit, uses only public bundled reference files, and supports sparse data.
+    // Research is nonblocking, fills Compare, and updates the selected decision mode.
     await act(async () => document.querySelector('.section-heading button').click());
+    const researchPending = [];
+    let researchedImports = 0;
+    const researchField = (value, kind = 'value') => ({ kind, value: kind === 'value' ? value : null, minimum: 130, maximum: 180, alternatives: [], scope: { year: 2018, make: 'Honda', model: 'Civic' }, sharedAcross: DISCRIMINATORS, evidence: [{ type: 'model-reference', source: 'Honda Canada', url: 'https://hondanews.ca/en-CA/specifications', quote: `${value} hp`, configuration: { year: 2018, make: 'Honda', model: 'Civic' } }] });
+    globalThis.fetch = async (input, init) => {
+      if (String(input).startsWith('/data/fuel/')) return Response.json({ columns: [], rows: [] });
+      if (input === '/api/model-specs') return new Promise(resolve => researchPending.push({ resolve, signal: init.signal }));
+      researchedImports++;
+      return Response.json({ vehicle: { legacyItemId: `${researchedImports}77777777777`, year: '2018', make: 'Honda', model: 'Civic', description: 'Odometer: 2k kms.', images: [], itemSpecifics: [] } });
+    };
+    await change('#listing-url', 'https://www.ebay.ca/itm/177777777777');
+    await submit();
+    assert.equal(document.querySelectorAll('.car-card').length, 1);
+    assert.match(document.querySelector('.source-status').textContent, /Looking up model/);
+    await change('#listing-url', 'https://www.ebay.ca/itm/277777777777');
+    await submit();
+    await act(async () => {
+      researchPending[0].resolve(Response.json({ modelSpecs: { status: 'matched', fields: { horsepower: researchField(158), torque: researchField(150, 'range') }, searchSuggestions: '<div>Google Search</div>' } }));
+      researchPending[1].resolve(Response.json({ modelSpecs: { status: 'matched', fields: { horsepower: researchField(132) } } }));
+      await new Promise(resolve => setTimeout(resolve, 25));
+    });
+    assert.match(document.querySelector('table').textContent, /158.*Typical model spec/);
+    assert.match(document.querySelector('table').textContent, /130–180.*excluded from scoring/);
+    assert.ok(document.querySelector('.spec-citation a[href="https://hondanews.ca/en-CA/specifications"]'));
+    const attribution = document.querySelector('.search-attribution');
+    assert.ok(attribution);
+    assert.doesNotMatch(attribution.getAttribute('sandbox'), /allow-scripts|allow-same-origin/);
+    await go('decide');
+    await act(async () => document.querySelector('.mode-card[data-mode="performance"]').click());
+    assert.equal(document.querySelector('.decision-match').dataset.basis, 'supported');
+    assert.match(document.querySelector('.decision-reasons').textContent, /158 hp.*Typical model spec/);
+    assert.match(document.querySelector('.score-parts').textContent, /Typical model spec/);
+    assert.equal(document.querySelectorAll('.decision-reasons > li').length <= 3, true);
+    assert.equal(document.querySelectorAll('.decision-key-facts > div').length <= 3, true);
+    // Retry research without reimporting; a failed retry preserves known specifications.
+    await go('compare');
+    assert.match(document.querySelector('.car-card .research-control').textContent, /Research ready: 2 specifications/);
+    assert.equal(document.querySelector('.car-card [data-action="model-research"]').textContent, 'Refresh research');
+    await act(async () => document.querySelector('.car-card .research-control button').click());
+    assert.equal(document.querySelector('.vehicle-review').open, true, 'View results reveals the car evidence without another API request');
+    assert.equal(document.activeElement, document.querySelector('.vehicle-summary'));
+    await act(async () => document.querySelector('.car-card [data-action="model-research"]').click());
+    assert.equal(document.querySelector('.car-card [data-action="model-research"]').disabled, true);
+    assert.match(document.querySelector('table').textContent, /158/);
+    await act(async () => {
+      researchPending.at(-1).resolve(Response.json({ modelSpecs: { status: 'quota', fields: {}, reason: 'Free research quota reached.' } }));
+      await new Promise(resolve => setTimeout(resolve, 15));
+    });
+    assert.match(document.querySelector('table').textContent, /158/);
+    assert.match(document.querySelector('.car-card').textContent, /Previous research is still available/);
+    assert.equal(document.querySelectorAll('.car-card').length, 2);
+    // Clearing during another pending lookup aborts it; its late result cannot restore a car.
+    await go('compare');
+    await act(async () => document.querySelector('.section-heading button').click());
+    await change('#listing-url', 'https://www.ebay.ca/itm/377777777777');
+    await submit();
+    await act(async () => document.querySelector('.remove-button').click());
+    assert.equal(researchPending.at(-1).signal.aborted, true);
+    await act(async () => {
+      researchPending.at(-1).resolve(Response.json({ modelSpecs: { status: 'matched', fields: { horsepower: researchField(158) } } }));
+      await new Promise(resolve => setTimeout(resolve, 15));
+    });
+    assert.equal(document.querySelectorAll('.car-card').length, 0);
+    // Demo is explicit, uses only public bundled reference files, and supports sparse data.
     const demoRequests = [];
     globalThis.fetch = async url => {
       demoRequests.push(url);
@@ -189,21 +266,29 @@ test('three-page journey preserves imports, supports all modes, removes and repl
       document.querySelector('.demo-entry button').click();
       await new Promise(resolve => setTimeout(resolve, 100));
     });
+    for (let attempt = 0; attempt < 100 && document.querySelector('.source-status-grid [role="status"]'); attempt++) {
+      await act(async () => new Promise(resolve => setTimeout(resolve, 20)));
+    }
     assert.equal(document.querySelectorAll('.car-card').length, 3);
     assert.equal(demoRequests.length, 3);
     assert.match(document.querySelector('.demo-notice').textContent, /fictional/);
     assert.match(document.querySelector('.source-status-grid').textContent, /Documented original specifications.*Seller-reported claims.*Typical model information.*Still to verify on this car/s);
     assert.ok(document.querySelector('.model-research a[href="https://www.caranddriver.com/honda/civic-2018"]'));
-    assert.equal(document.querySelector('.table-scroll').querySelectorAll('tbody tr').length, 7);
+    assert.equal(document.querySelector('.table-scroll').querySelectorAll('tbody tr').length, 13);
+    assert.match(document.querySelector('.table-scroll').textContent, /Power \(hp\).*158.*132.*155/s);
+    assert.match(document.querySelector('.source-status-grid').textContent, /Factory reference/);
+    assert.ok(document.querySelector('a[href*="hondanews.ca"]'), 'factory evidence links to the manufacturer');
     await go('decide');
     await act(async () => document.querySelector('.mode-card[data-mode="performance"]').click());
-    assert.equal(document.querySelector('.decision-match').dataset.basis, 'starting-point');
-    assert.match(document.querySelector('.decision-reason').textContent, /starting point/);
+    assert.equal(document.querySelector('.decision-match').dataset.basis, 'supported');
+    assert.match(document.querySelector('.decision-reason').textContent, /supported power.*torque/);
+    assert.match(document.querySelector('.score-parts').textContent, /factory reference; not measured output/);
     assert.equal(document.querySelectorAll('.research-guidance-grid > article').length, 3);
     assert.equal(document.querySelectorAll('.research-next-step').length, 2);
-    assert.match(document.querySelector('.decision-research').textContent, /General AI web research is not connected/);
-    assert.match(document.querySelector('.score-basis').textContent, /not a score for the selected priority/);
+    assert.match(document.querySelector('.decision-research').textContent, /retrieved manufacturer information/);
+    assert.match(document.querySelector('.score-basis').textContent, /Shortlist preference points/);
     await act(async () => document.querySelector('.mode-card[data-mode="comfort"]').click());
+    assert.equal(document.querySelector('.decision-match').dataset.basis, 'starting-point');
     assert.match(document.querySelector('.decision-research').textContent, /sound isolation/);
     await act(async () => document.querySelector('.mode-card[data-mode="value"]').click());
     assert.ok(document.querySelector('.best-match'));

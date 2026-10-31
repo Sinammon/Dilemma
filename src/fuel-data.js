@@ -7,7 +7,7 @@ export const FUEL_LABELS = { X: 'Regular gasoline', Z: 'Premium gasoline', D: 'D
 export function matchFuelEconomy(car, rows) {
   const none = reason => ({ status: 'unmatched', reason, source: NRCAN_SOURCE });
   if (car.enrichment?.vin?.mismatches?.length) return none('Resolve the VIN/listing mismatch before matching a configuration.');
-  const { specs } = extractVehicleSpecs(car);
+  const { specs } = extractVehicleSpecs({ ...car, enrichment: { ...car.enrichment, modelSpecs: undefined } });
   const get = key => specs[key].value;
   if (['year', 'make', 'model', 'displacement', 'cylinders', 'transmission', 'fuelType'].some(key => get(key) == null)) return none('Exact year, make, model, engine size, cylinders, transmission and fuel type are required.');
   if (get('transmission') !== 'CVT' && get('transmissionSpeeds') == null && get('transmissionCode') == null) return none('Transmission speed count or an explicit configuration code is missing.');

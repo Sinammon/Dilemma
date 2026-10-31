@@ -1,9 +1,10 @@
 import { sellerText } from './mileage.js';
+import { CONFIG_FIELDS, MODEL_FIELDS, modelSpecsInput, usableModelFinding } from '../shared/model-specs.js';
 
 export const normalized = value => String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const number = value => /^\d+(?:\.\d+)?$/.test(String(value).trim()) ? Number(value) : null;
 const positive = value => number(value) > 0 ? number(value) : null;
-export const FIELD_LABELS = { year: 'Year', make: 'Make', model: 'Model', displacement: 'Engine displacement (L)', engineType: 'Engine configuration', induction: 'Induction', cylinders: 'Cylinders', horsepower: 'Power (hp)', torque: 'Torque (Nm)', transmission: 'Transmission', transmissionSpeeds: 'Transmission speeds', transmissionCode: 'Transmission code', drivetrain: 'Drivetrain', fuelType: 'Fuel type', bodyType: 'Body type', seats: 'Seating capacity' };
+export const FIELD_LABELS = { year: 'Year', make: 'Make', model: 'Model', trim: 'Trim', market: 'Original market', displacement: 'Engine displacement (L)', engineType: 'Engine configuration', induction: 'Induction', cylinders: 'Cylinders', horsepower: 'Power (hp)', torque: 'Torque (Nm)', transmission: 'Transmission', transmissionSpeeds: 'Transmission speeds', transmissionCode: 'Transmission code', drivetrain: 'Drivetrain', fuelType: 'Fuel type', bodyType: 'Body type', seats: 'Seating capacity' };
 export const FEATURE_RULES = [
   ['Heated seats', /\bheated (?:front |rear )?seats?\b/i], ['Leather seats', /\b(?:full[- ]grain )?leather (?:seats?|interior|upholstery)\b/i],
   ['Navigation', /\b(?:navigation|gps)\b/i], ['Backup camera', /\b(?:backup|back[- ]up|rear[- ]?view|reversing) camera\b/i],
@@ -19,6 +20,7 @@ export const FEATURE_RULES = [
 function normalize(key, value) {
   if (value == null || value === '' || /^(?:unknown|n\/?a|not specified)$/i.test(String(value).trim())) return null;
   const text = String(value).trim();
+  if (key === 'market') return /^(?:ca|canada|canadian)$/i.test(text) ? 'CA' : /^(?:us|usa|united states|american)$/i.test(text) ? 'US' : text;
   if (['year', 'cylinders', 'seats', 'transmissionSpeeds'].includes(key)) {
     const n = positive(text);
     return Number.isInteger(n) && (key !== 'year' || n >= 1886 && n <= new Date().getFullYear() + 1) && (key !== 'seats' || n <= 100) ? n : null;
@@ -70,6 +72,7 @@ function normalize(key, value) {
 }
 
 const aliases = {
+  trim: ['trim', 'trim level', 'variant'], market: ['market', 'original market', 'market specification', 'market specifications'],
   displacement: ['engine displacement', 'engine displacement (l)', 'displacement (l)', 'engine size', 'engine size (l)', 'engine'],
   engineType: ['engine configuration', 'engine type', 'engine'], cylinders: ['cylinders', 'number of cylinders', 'engine cylinders'],
   horsepower: ['horsepower', 'horse power', 'power', 'engine power', 'power (hp)', 'horsepower (hp)'], torque: ['torque', 'engine torque', 'torque (nm)'],
@@ -92,11 +95,13 @@ function patterns(text, structuredKey) {
   };
   addMatches(/(?<![\w.])(\d(?:\.\d{1,3})?)\s*[- ]?(?:litres?|liters?|L)\b/gi, 'displacement');
   addMatches(/(?<![\w.])(\d{3,5})\s*cc\b/gi, 'displacement', m => Number(m[1]) / 1000);
-  addMatches(/\b(\d{1,4}(?:\.\d+)?)\s*(hp|bhp|kW)\b/gi, 'horsepower', m => Number(m[1]) * (/kw/i.test(m[2]) ? 1.34102209 : 1));
-  addMatches(/\b(\d{1,4}(?:\.\d+)?)\s*(Nm|N[- ]m|lb[- ]ft|ft[- ]lb)\b/gi, 'torque', m => Number(m[1]) * (/lb/i.test(m[2]) ? 1.355817948 : 1));
-  addMatches(/\b(?:V|I|inline[- ]?|flat[- ]?|boxer[- ]?)([3468]|10|12)\b/gi, 'cylinders');
+  addMatches(/(?<![\w.,+\-])(\d{1,4}(?:\.\d+)?)\s*[-–]?\s*(hp|bhp|horse\s?power|kW|PS)\b/gi, 'horsepower', m => Number(m[1]) * (/kw/i.test(m[2]) ? 1.34102209 : /^ps$/i.test(m[2]) ? 0.98632007 : 1));
+  addMatches(/\b(?:horse\s?power|hp|bhp)\s*(?::|=|is)\s*(\d{1,4}(?:\.\d+)?)(?![\w.])/gi, 'horsepower');
+  addMatches(/(?<![\w.,+\-])(\d{1,4}(?:\.\d+)?)\s*(N\s*[.·•\-–]?\s*m|newton[- ]met(?:er|re)s?|lbs?\.?\s*[.·•\-–]?\s*ft\.?|ft\.?\s*[.·•\-–]?\s*lbs?\.?|pound[- ]feet|foot[- ]pounds?)\b/gi, 'torque', m => Number(m[1]) * (/lb|pound|feet/i.test(m[2]) ? 1.355817948 : 1));
+  addMatches(/\b(?:Canadian|Canada|US|USA|United States)[- ](?:market|spec(?:ification)?s?)\b/gi, 'market', m => /^(?:canada|canadian)/i.test(m[0]) ? 'CA' : 'US');
+  addMatches(/\b(?:V|I|inline[- ]?|flat[- ]?|boxer[- ]?)([34568]|10|12)\b/gi, 'cylinders');
   addMatches(/\b(\d{1,2})[- ]?(?:cylinders?|cyl)\b/gi, 'cylinders');
-  addMatches(/\b(V[3468]|V10|V12|I[3468]|inline[- ]?[3468]|boxer|rotary|electric motor)\b/gi, 'engineType');
+  addMatches(/\b(V[3468]|V10|V12|I[34568]|inline[- ]?[34568]|boxer|rotary|electric motor)\b/gi, 'engineType');
   addMatches(/\b(turbocharged|supercharged|naturally aspirated)\b/gi, 'induction');
   addMatches(/\b(automatic|manual|CVT|continuously variable|dual[- ]clutch|automated manual)\b/gi, 'transmission');
   addMatches(/\b(\d{1,2})[- ]speed\b/gi, 'transmissionSpeeds');
@@ -116,28 +121,53 @@ function patterns(text, structuredKey) {
   return values;
 }
 
-function resolve(evidence) {
+function resolve(evidence, tolerance = 0) {
   const values = [...new Map(evidence.map(e => [typeof e.value === 'number' ? e.value.toFixed(2) : normalized(e.value), e.value])).values()];
-  return { value: values.length === 1 ? values[0] : null, status: !values.length ? 'unknown' : values.length > 1 ? 'conflict' : evidence.some(e => e.type === 'vpic') ? evidence.some(e => e.type !== 'vpic') ? 'corroborated' : 'vin-record' : 'seller-reported', evidence };
+  // Published whole-unit ratings can differ slightly after unit conversion.
+  if (values.length > 1 && tolerance && values.every(v => typeof v === 'number') && Math.max(...values) - Math.min(...values) <= tolerance) values.splice(1);
+  return { value: values.length === 1 ? values[0] : null, status: !values.length ? 'unknown' : values.length > 1 ? 'conflict' : evidence.some(e => e.type === 'factory-reference') ? evidence.some(e => e.type !== 'factory-reference') ? 'corroborated' : 'factory-reference' : evidence.some(e => e.type === 'vpic') ? evidence.some(e => e.type !== 'vpic') ? 'corroborated' : 'vin-record' : 'seller-reported', evidence };
+}
+
+export function specEvidenceLabel(spec) {
+  if (spec.status === 'model-reference') return 'Typical model spec · AI-researched with cited sources';
+  const factory = spec.evidence.some(item => item.type === 'factory-reference');
+  if (factory) return spec.status === 'corroborated' ? 'Listing/VIN agrees with factory reference; not measured output' : 'Manufacturer factory reference; not measured output';
+  return spec.status === 'vin-record' ? 'NHTSA original VIN record' : spec.status === 'corroborated' ? 'Seller claim + NHTSA VIN record' : 'Seller-reported';
 }
 
 export function extractVehicleSpecs(car) {
   const evidence = Object.fromEntries(Object.keys(FIELD_LABELS).map(key => [key, []]));
   const add = (key, value, source, type, quote) => { if (value != null) evidence[key].push({ value, source, type, quote }); };
-  for (const key of ['year', 'make', 'model']) {
+  for (const key of ['year', 'make', 'model', 'trim', 'market']) {
     for (const value of [car[key]].flat()) add(key, normalize(key, value), 'eBay item specifics', 'seller-specifics', String(value ?? ''));
   }
   for (const aspect of car.itemSpecifics || []) {
-    const key = Object.keys(aliases).find(key => aliases[key].includes(aspect.name?.trim().toLowerCase()));
+    const fieldName = aspect.name?.trim().toLowerCase();
+    const powerField = /^(?:engine )?(?:power|horse ?power)\s*\((hp|bhp|kw|ps)\)$/.exec(fieldName);
+    const torqueField = /^(?:engine )?torque\s*\(([^)]+)\)$/.exec(fieldName);
+    const key = powerField ? 'horsepower' : torqueField ? 'torque' : Object.keys(aliases).find(key => aliases[key].includes(fieldName));
     if (!key) continue;
     for (const value of [aspect.value].flat()) {
       const field = aspect.name.trim().toLowerCase();
+      const unit = powerField?.[1] || torqueField?.[1] || (/^horse ?power$/.test(field) ? 'hp' : null);
+      const labelledNumber = String(value ?? '').match(/^(\d+(?:\.\d+)?)(?:\s*@\s*\d[\d,]*\s*(?:rpm)?)?$/i);
+      if (unit && labelledNumber) for (const item of patterns(`${labelledNumber[1]} ${unit}`)) if (item.key === key) add(item.key, item.value, `eBay: ${aspect.name}`, 'seller-specifics', `${aspect.name}: ${value}`);
       const explicitUnit = key === 'horsepower' && /^(?:horse ?power|power \(hp\)|horsepower \(hp\))$/.test(field) || key === 'displacement' && /\(l\)$/.test(field) || key === 'torque' && /\(nm\)$/.test(field);
       if (explicitUnit && positive(value)) add(key, normalize(key, value), `eBay: ${aspect.name}`, 'seller-specifics', String(value));
       for (const item of patterns(String(value ?? ''), key)) add(item.key, item.value, `eBay: ${aspect.name}`, 'seller-specifics', item.quote);
     }
   }
-  for (const item of patterns(sellerText(car.description))) add(item.key, item.value, 'Seller description', 'seller-description', item.quote);
+  for (const [text, source, type] of [[car.description, 'Seller description', 'seller-description'], [car.title, 'Listing title', 'seller-title']]) {
+    for (const item of patterns(sellerText(text))) add(item.key, item.value, source, type, item.quote);
+    // Unit-bearing labels also support table-like prose: Torque (lb-ft): 138.
+    for (const match of sellerText(text).matchAll(/\b(power|horsepower|torque)\s*\(([^)]+)\)\s*[:=]?\s*(\d{1,4}(?:\.\d+)?)/gi)) {
+      const before = sellerText(text).slice(Math.max(0, match.index - 65), match.index).split(/[;\n!?]|\.(?!\d)/).at(-1);
+      const after = sellerText(text).slice(match.index + match[0].length);
+      if (/\b(?:not|no|optional|available|may have|tuned|modified)\s*$/i.test(before) || /^\s*(?:optional|available|unknown)\b/i.test(after)) continue;
+      const key = match[1].toLowerCase() === 'torque' ? 'torque' : 'horsepower';
+      for (const item of patterns(`${match[3]} ${match[2]}`)) if (item.key === key) add(key, item.value, source, type, match[0]);
+    }
+  }
   const vin = car.enrichment?.vin;
   if (vin?.status === 'decoded' && !vin.mismatches?.length) {
     for (const [key, value] of Object.entries(vin.fields || {})) {
@@ -145,7 +175,15 @@ export function extractVehicleSpecs(car) {
       add(key, normalize(key, value), 'NHTSA vPIC', 'vpic', String(value ?? ''));
     }
   }
-  const specs = Object.fromEntries(Object.entries(evidence).map(([key, items]) => [key, resolve(items)]));
+  const factory = car.enrichment?.factorySpecs;
+  if (factory?.status === 'matched' && !vin?.mismatches?.length) {
+    for (const key of ['horsepower', 'torque']) {
+      const value = normalize(key, factory.values?.[key]);
+      if (value != null) evidence[key].push({ value, source: factory.source.publisher, type: 'factory-reference', url: factory.source.url, quote: factory.quotes[key], configuration: factory.configuration });
+    }
+  }
+  const specs = Object.fromEntries(Object.entries(evidence).map(([key, items]) => [key, resolve(items, ['horsepower', 'torque'].includes(key) ? 0.75 : 0)]));
+  for (const key of ['horsepower', 'torque']) if (specs[key].status === 'unknown') specs[key].reason = factory?.reason || 'Factory specifications need an exact original market and engine/trim match; check the listing or ask the seller.';
   const features = Object.fromEntries(FEATURE_RULES.map(([label, pattern]) => {
     const claims = [];
     const texts = [['Seller description', sellerText(car.description)], ...(car.itemSpecifics || []).flatMap(a => [a.value].flat().filter(v => v != null && v !== '').map(v => [`eBay: ${a.name}`, `${a.name}: ${v}`]))];
@@ -159,6 +197,15 @@ export function extractVehicleSpecs(car) {
     const result = resolve(claims);
     return [label, result];
   }));
+  const research = car.enrichment?.modelSpecs;
+  if (['matched', 'partial'].includes(research?.status) && !vin?.mismatches?.length && !CONFIG_FIELDS.some(key => specs[key]?.status === 'conflict')) {
+    const input = modelSpecsInput({ ...Object.fromEntries(CONFIG_FIELDS.filter(key => specs[key]?.value != null).map(key => [key, specs[key].value])), fields: MODEL_FIELDS });
+    if (input) for (const [field, finding] of Object.entries(research.fields || {})) {
+      const target = field.startsWith('feature:') ? features[field.slice(8)] : specs[field];
+      if (!target || target.status !== 'unknown' || !usableModelFinding(field, finding, input)) continue;
+      Object.assign(target, finding, { referenceValue: finding.kind === 'configuration' ? finding.value : undefined, value: finding.kind === 'value' ? finding.value : null, status: finding.kind === 'value' ? 'model-reference' : 'model-context' });
+    }
+  }
   return { specs, features };
 }
 

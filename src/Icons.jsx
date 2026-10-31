@@ -2,6 +2,8 @@ import React from 'react';
 
 export default function Icon({ name, size = 20, ...props }) {
   const paths = {
+    menu: <path d="M4 6h16M4 12h16M4 18h16" />,
+    close: <path d="m6 6 12 12M6 18 18 6" />,
     trophy: <><path d="M8 3h8v6a4 4 0 0 1-8 0V3Zm4 10v6m-4 2h8M8 5H4v3a4 4 0 0 0 5 4m7-7h4v3a4 4 0 0 1-5 4" /></>,
     dollar: <><path d="M12 2v20m6-15c-1-4-12-4-12 1 0 5 12 3 12 8 0 5-11 5-12 1" /></>,
     seat: <><path d="M7 4v10H4v6h14V5a2 2 0 0 0-4 0v10H7M4 20v2m14-2v2" /></>,

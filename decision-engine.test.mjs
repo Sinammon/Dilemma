@@ -6,7 +6,7 @@ import { rankCars, mileageKm, detectWarnings, rankDecisionMode, DECISION_MODES }
 const car = (id, price, year, raw = '100000', unit = 'km', extra = {}) => ({ legacyItemId: id, title: `Fictional car ${id}`, priceCAD: { value: String(price), currency: 'CAD' }, year: String(year), mileage: { raw, unit }, ...extra });
 const pair = [car('A', 10000, 2016), car('B', 20000, 2021)];
 
-test('expanded seller-reported odometer values score in compatible units and conflicts exclude mileage', () => {
+test('seller description mileage wins and scores in compatible units', () => {
   const cars = [
     car('A', 10000, 2016, '80000', null, { description: '<p>Odometer reads <strong>80k</strong> miles.</p>' }),
     car('B', 10000, 2016, '130000', null, { description: 'Mileage is in KM.' }),
@@ -19,8 +19,8 @@ test('expanded seller-reported odometer values score in compatible units and con
   assert.deepEqual(cars, original);
   assert.equal(mileageKm({ raw: '80k miles' }), 128747.52);
   const conflicted = rankCars([cars[0], { ...cars[1], description: '130k km. Mileage is in miles.' }], { mileage: 100 }, 2026);
-  assert.equal(conflicted.criteria.find(c => c.key === 'mileage').active, false);
-  assert.equal(conflicted.best.length, 0);
+  assert.equal(conflicted.criteria.find(c => c.key === 'mileage').active, true);
+  assert.equal(conflicted.best.length, 1);
 });
 test('weighted scores match a hand calculation and do not mutate inputs', () => {
   const original = structuredClone(pair);
@@ -46,12 +46,15 @@ test('missing information excludes a criterion for everyone and renormalizes', (
   assert.equal(result.criteria[0].active, false);
   assert.equal(result.best[0].breakdown[0].share, 1);
 });
-test('unknown, conflicting and invalid units are never assumed', () => {
-  for (const mileage of [null, { raw: '1000', unit: null }, { raw: ['1000', '2000'], unit: 'km' }, { raw: '1000 mi', unit: 'km' }, { raw: '1000', unit: ['km', 'mi'] }, { raw: '100-200', unit: 'km' }, { raw: '-5', unit: 'km' }]) assert.equal(mileageKm(mileage), null);
-  assert.equal(mileageKm({ raw: '1,000 miles', unit: null }), 1609.344);
-  assert.equal(mileageKm({ raw: 0, unit: 'km' }), 0);
-  assert.equal(rankCars([pair[0], car('C', 10000, 2020, '1000', null)]).criteria[2].active, false);
+test('unitless readings default to kilometres and invalid readings stay unscored', () => {
+  for (const mileage of [null, { raw: '100-200' }, { raw: '-5' }]) assert.equal(mileageKm(mileage), null);
+  assert.equal(mileageKm({ raw: '1000' }), 1000);
+  assert.equal(mileageKm({ raw: ['1000', '2000'], unit: ['km', 'mi'] }), 1000);
+  assert.equal(mileageKm({ raw: '1,000 miles', unit: 'km' }), 1609.344);
+  assert.equal(mileageKm({ raw: 0 }), 0);
+  assert.equal(rankCars([pair[0], car('C', 10000, 2020, '1000', null)]).criteria[2].active, true);
 });
+
 test('non-CAD prices, conflicting years and invalid numeric data are excluded', () => {
   const result = rankCars([pair[0], { ...pair[1], priceCAD: { value: '100', currency: 'USD' }, year: ['2020', '2021'] }]);
   assert.equal(result.criteria[0].active, false);
@@ -120,8 +123,8 @@ test('comfort scores only common explicitly known amenities and never model-base
   assert.equal(result.best[0].score, 100);
   assert.equal(rankDecisionMode(pair, 'comfort').best.length, 0);
 });
-test('mileage evidence conflicts remove the factor for everyone in every mode', () => {
+test('seller distance overrides structured mileage in every mode', () => {
   const result = rankDecisionMode([pair[0], { ...pair[1], description: 'Odometer 100000 miles.' }], 'balanced');
-  assert.equal(result.criteria.find(c => c.key === 'mileage').active, false);
-  assert.equal(result.ranked.every(c => c.breakdown.every(b => b.key !== 'mileage')), true);
+  assert.equal(result.criteria.find(c => c.key === 'mileage').active, true);
+  assert.equal(result.ranked.every(c => c.breakdown.some(b => b.key === 'mileage')), true);
 });

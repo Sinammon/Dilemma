@@ -35,7 +35,7 @@ export function missingDetails(car) {
     ['Mileage / unit', resolveMileage(car).status === 'known' ? true : null],
     ['Transmission', specs.transmission.value],
     ['Fuel type', specs.fuelType.value],
-    ['Engine displacement', specs.displacement.value], ['Horsepower', specs.horsepower.value],
+    ['Engine displacement', specs.displacement.value], ['Horsepower', specs.horsepower.value], ['Torque', specs.torque.value],
     ['Body type', specs.bodyType.value], ['Seats', specs.seats.value],
     ['Condition', car.condition], ['Seller description', car.description],
   ];

@@ -1,8 +1,9 @@
 import { MODEL_PROFILES } from './model-profiles.js';
 import { extractVehicleSpecs, normalized } from './vehicle-specs.js';
+import { CONFIG_FIELDS, MODEL_FIELDS, modelSpecsInput, validatedResearch } from '../shared/model-specs.js';
 
 export const RESEARCH_CATEGORIES = { strengths: 'Strengths', issues: 'Documented issues to investigate', comfort: 'Comfort', practicality: 'Practicality', performance: 'Performance' };
-export const RESEARCH_METHOD = 'Reviewed model library, checked 29 October 2026. General AI web research is not connected. The optional NHTSA lookup retrieves official US recall campaigns. Uncovered models receive no generated claims.';
+export const RESEARCH_METHOD = 'Model research combines retrieved manufacturer information and attributed professional reviews. The reviewed model library is available as a fallback. Individual condition and installed equipment still need confirmation.';
 export const RESEARCH_LIMIT = 'Model-level information only. Reviews describe typical or tested configurations, not this car. Equipment, condition, accident history, maintenance and campaign completion need individual verification. Bulletins and recalls do not measure how common a failure is.';
 
 // Citation metadata is required, but human source review remains necessary to verify support.
@@ -20,7 +21,7 @@ export function researchForCar(car, profiles = MODEL_PROFILES) {
   const { specs } = extractVehicleSpecs(car);
   if (['year', 'make', 'model'].some(key => specs[key].value == null)) return none('A supported year, make and model are needed to select research.');
   const candidates = profiles.filter(p => p.year === specs.year.value && normalized(p.make) === normalized(specs.make.value) && p.models.some(m => normalized(m) === normalized(specs.model.value)));
-  if (candidates.length !== 1) return none('No reviewed profile for this exact model year. No facts have been generated.');
+  if (candidates.length !== 1) return none('No bundled review profile for this exact model year. Live research appears separately when available.');
   const profile = candidates[0];
   const variant = [car.title, specs.model.value, ...(car.itemSpecifics || []).filter(a => /^(trim|model)$/i.test(a.name?.trim())).flatMap(a => [a.value].flat())].filter(v => typeof v === 'string').join(' ');
   if (profile.excludedVariants?.some(v => new RegExp(`\\b${v.replaceAll(' ', '\\s*')}\\b`, 'i').test(variant))) return none('This performance variant is outside the reviewed profile.');
@@ -34,8 +35,23 @@ export function researchForCar(car, profiles = MODEL_PROFILES) {
 }
 
 const modeCategories = { value: ['strengths', 'issues'], cost: ['issues'], comfort: ['comfort'], practical: ['practicality'], performance: ['performance'], balanced: ['strengths', 'comfort', 'practicality', 'performance'] };
+export function liveResearchForCar(car) {
+  const none = { fields: {}, insights: [], assessments: {} };
+  if (!['matched', 'partial'].includes(car.enrichment?.modelSpecs?.status) || car.enrichment?.vin?.mismatches?.length) return none;
+  const { specs } = extractVehicleSpecs({ ...car, enrichment: { ...car.enrichment, modelSpecs: undefined } });
+  if (CONFIG_FIELDS.some(key => specs[key]?.status === 'conflict')) return none;
+  const input = modelSpecsInput({ ...Object.fromEntries(CONFIG_FIELDS.filter(key => specs[key]?.value != null).map(key => [key, specs[key].value])), fields: MODEL_FIELDS });
+  return input ? validatedResearch(car.enrichment.modelSpecs, input) : none;
+}
+export function liveResearchClaim(insight, checked) {
+  const date = checked ? new Date(checked) : null;
+  const reviewed = date && Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto' }).format(date) : 'Current lookup';
+  return { ...insight, tone: { advantage: 'positive', drawback: 'caution', neutral: 'mixed' }[insight.tone],
+    sources: insight.evidence.map((e, index) => ({ id: `${insight.id}-${index}`, url: e.url, publisher: e.source, title: e.title || e.source, locator: e.label || e.quote, reviewed, kind: 'AI-read model source' })) };
+}
 export function researchGuidance(car, mode) {
   const research = researchForCar(car);
-  const claims = research.claims.filter(c => (modeCategories[mode] || modeCategories.value).includes(c.category));
-  return { ...research, claims, checks: research.claims.filter(c => c.category === 'issues') };
+  const live = liveResearchForCar(car);
+  const claims = [...live.insights.filter(c => c.categories.includes(mode)).map(c => liveResearchClaim(c, live.checked)), ...research.claims.filter(c => (modeCategories[mode] || modeCategories.value).includes(c.category))];
+  return { ...research, status: claims.length ? 'matched' : research.status, claims, assessment: live.assessments[mode], checks: [...live.insights.filter(c => c.categories.includes('issues')).map(c => liveResearchClaim(c, live.checked)), ...research.claims.filter(c => c.category === 'issues')] };
 }

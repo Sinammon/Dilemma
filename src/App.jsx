@@ -6,6 +6,7 @@ import VehicleComparison from './VehicleComparison.jsx';
 import LandingPreview from './LandingPreview.jsx';
 import Icon from './Icons.jsx';
 import { enrichVehicle } from './enrichment.js';
+import { loadModelSpecs } from './model-specs.js';
 import { makeDemoCars } from './demo-cars.js';
 
 const route = () => ['compare', 'decide'].includes(window.location.hash.slice(1)) ? window.location.hash.slice(1) : 'import';
@@ -19,6 +20,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuToggle = useRef(null);
   const enrichmentTasks = useRef(new Set());
   useEffect(() => () => { for (const controller of enrichmentTasks.current) controller.abort(); }, []);
   useEffect(() => {
@@ -27,6 +30,7 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
   useEffect(() => {
+    setMenuOpen(false);
     document.querySelector('main h1')?.focus({ preventScroll: true });
     window.scrollTo(0, 0);
   }, [page]);
@@ -44,12 +48,31 @@ export default function App() {
   }
   function enrichImported(imported) {
     const controller = new AbortController();
+    controller.vehicleId = imported.legacyItemId;
     enrichmentTasks.current.add(controller);
-    void enrichVehicle(imported, { signal: controller.signal }).then(enrichment => {
-      if (!controller.signal.aborted) setCars(previous => previous.map(car => car === imported ? { ...car, enrichment } : car));
-    }).catch(() => {
-      if (!controller.signal.aborted) setCars(previous => previous.map(car => car === imported ? { ...car, enrichment: { status: 'unavailable' } } : car));
+    // A per-import token survives partial updates and cannot match a removed/replaced car.
+    const applyEnrichment = enrichment => {
+      if (!controller.signal.aborted) setCars(previous => previous.map(car => car === imported || car.enrichmentToken === controller ? { ...car, enrichmentToken: controller, enrichment } : car));
+    };
+    void enrichVehicle(imported, { signal: controller.signal, onUpdate: applyEnrichment }).then(applyEnrichment).catch(() => {
+      applyEnrichment({ status: 'unavailable' });
     }).finally(() => enrichmentTasks.current.delete(controller));
+  }
+  function retryResearch(car) {
+    for (const previous of enrichmentTasks.current) if (previous.vehicleId === car.legacyItemId) previous.abort();
+    const controller = new AbortController();
+    controller.vehicleId = car.legacyItemId;
+    enrichmentTasks.current.add(controller);
+    const previous = car.enrichment || {};
+    const apply = enrichment => { if (!controller.signal.aborted) setCars(current => current.map(item => item === car || item.enrichmentToken === controller ? { ...item, enrichmentToken: controller, enrichment } : item)); };
+    apply({ ...previous, status: 'loading-model' });
+    void loadModelSpecs(car, { signal: controller.signal }).then(modelSpecs => {
+      const usable = Object.keys(modelSpecs.fields || {}).length || modelSpecs.insights?.length;
+      const hasPrevious = ['matched', 'partial'].includes(previous.modelSpecs?.status);
+      const research = usable ? { ...modelSpecs, fields: { ...previous.modelSpecs?.fields, ...modelSpecs.fields }, insights: modelSpecs.insights?.length ? modelSpecs.insights : previous.modelSpecs?.insights || [], assessments: modelSpecs.insights?.length ? modelSpecs.assessments : previous.modelSpecs?.assessments || {} }
+        : hasPrevious ? { ...previous.modelSpecs, lastAttempt: { status: modelSpecs.status, reason: modelSpecs.reason } } : modelSpecs;
+      apply({ ...previous, status: 'complete', modelSpecs: research });
+    }).catch(() => {}).finally(() => enrichmentTasks.current.delete(controller));
   }
   function loadDemo() {
     if (cars.length || loading) return;
@@ -91,19 +114,19 @@ export default function App() {
   const enter = { initial: { opacity: reduced ? 1 : 0, y: reduced ? 0 : 14 }, animate: { opacity: 1, y: 0 }, transition: { duration: reduced ? 0 : 0.5, ease: [0.22, 1, 0.36, 1] } };
   return <LazyMotion features={domAnimation} strict><MotionConfig reducedMotion="user"><div className={`site-shell ${page === 'import' ? 'landing-shell' : page === 'decide' ? 'decision-shell' : ''}`}>
     <a className="skip-link" href="#main-content" onClick={event => { event.preventDefault(); document.getElementById('main-content')?.focus(); }}>Skip to content</a>
-    <header className="site-header"><a className="brand" href="#import" aria-label="Dilemma home"><span className="brand-mark">d.</span>Dilemma<span className="brand-dot">.</span></a><nav aria-label="Main navigation"><button className="nav-link how-link" type="button" onClick={showSteps}>How It Works</button>{page === 'import' ? <button className="nav-link features-link" type="button" onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: reduced ? 'instant' : 'smooth', block: 'center' })}>Features</button> : page === 'decide' ? <span className="decision-nav"><a href="#compare">Compare Cars</a><a href="#decide" aria-current="page">Help Me Decide</a></span> : <a className="shortlist-link" href="#compare" aria-current={page === 'compare' ? 'page' : undefined}>Your shortlist{cars.length > 0 && <span className="nav-count">{cars.length}</span>}</a>}<button className="nav-button" type="button" onClick={startImport}>Get Started <Icon name="arrow" size={17} /></button></nav></header>
-    {page === 'compare' && <div className="workflow" aria-label="Your progress">{[['import', '01', 'Import'], ['compare', '02', 'Compare'], ['decide', '03', 'Decide']].map(([id, n, label]) => <a href={`#${id}`} key={id} aria-current={page === id ? 'step' : undefined}><span>{n}</span>{label}</a>)}</div>}
+    <header className="site-header" onKeyDown={event => { if (event.key === 'Escape' && menuOpen) { setMenuOpen(false); menuToggle.current?.focus(); } }}><a className="brand" href="#import" aria-label="Dilemma home"><span className="brand-mark">d.</span>Dilemma<span className="brand-dot">.</span></a><button className="nav-menu-toggle" type="button" ref={menuToggle} aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen(open => !open)}><Icon name={menuOpen ? 'close' : 'menu'} size={22} />{menuOpen ? 'Close' : 'Menu'}</button><nav id="primary-navigation" className={menuOpen ? 'is-open' : ''} aria-label="Main navigation">{[['import', 'Import'], ['compare', 'Compare'], ['decide', 'Help Me Decide']].map(([id, label]) => <a className="nav-link" key={id} href={`#${id}`} aria-current={page === id ? 'page' : undefined} onClick={() => setMenuOpen(false)}>{label}{id === 'compare' && <span className="nav-count" aria-label={`${cars.length} cars in shortlist`}>{cars.length}</span>}</a>)}<button className="nav-button" type="button" onClick={() => { setMenuOpen(false); startImport(); }}>Import a car <Icon name="arrow" size={17} /></button></nav></header>
+    {page !== 'import' && <nav className="workflow" aria-label="Your progress">{[['import', '1', 'Import'], ['compare', '2', 'Compare'], ['decide', '3', 'Decide']].map(([id, n, label]) => <a href={`#${id}`} key={id} aria-current={page === id ? 'step' : undefined}><span>{n}</span>{label}</a>)}</nav>}
     <main id="main-content" tabIndex={-1}><m.div key={page} className="page-transition" {...enter}>
       {page === 'import' && <>
-        <div className="landing-decoration" aria-hidden="true"><div className="landing-glow" /><svg className="landing-road" viewBox="0 0 1500 620" preserveAspectRatio="none"><path d="M1500 80C1180 30 435 105 525 238S1420 407 1200 680" /><path d="M1500 125C1170 67 380 126 490 248S1295 419 1010 660" /><path d="M1500 180C1200 90 330 144 460 258S1130 435 780 660" /></svg></div>
         <section className="landing-layout" aria-label="Find your next car">
-          <div className="landing-copy"><p className="eyebrow">FROM EBAY.CA LISTINGS TO A CLEAR CHOICE</p><h1 tabIndex={-1}>Find the right car.<br /><span>Without the guesswork.</span></h1>{importForm}{!!cars.length && <a className="source-link" href="#compare">Return to your comparison →</a>}</div>
-          <div className="landing-preview"><LandingPreview onStart={startImport} /></div>
-          <section id="how-it-works" className="landing-steps" aria-labelledby="steps-heading"><h2 id="steps-heading" className="sr-only">How Dilemma works</h2>{[['link', 'Import', 'Paste an eBay.ca link'], ['compare', 'Compare', 'See key details side by side'], ['spark', 'Decide', 'Get a clear recommendation']].map(([icon, title, text]) => <div key={title}><span className="landing-step-icon"><Icon name={icon} size={28} /></span><h3>{title}</h3><p>{text}</p></div>)}</section>
+          <div className="landing-copy"><h1 tabIndex={-1}>Find the right car.<br /><span>Without the guesswork.</span></h1><p className="hero-intro">Your shortlist. A clearer picture. Bring your eBay.ca finds together and see which car fits what matters to you.</p>{importForm}{!!cars.length && <a className="source-link" href="#compare">Return to your comparison →</a>}<button className="how-link text-button" type="button" onClick={showSteps}>How it works <Icon name="chevron" size={16} /></button></div>
+          <div className="landing-preview"><div className="preview-intro"><h2>From a few tabs to a clear choice.</h2><p>Explore the workflow with fictional examples.</p></div><LandingPreview onStart={startImport} /></div>
+          <section id="how-it-works" className="how-section" aria-labelledby="steps-heading"><h2 id="steps-heading">Less back and forth.<br />More perspective.</h2><div className="landing-steps">{[['link', 'Import your finds', 'Paste an eBay.ca vehicle link. Keep up to four contenders together in one shortlist.'], ['compare', 'See the full picture', 'Compare asking prices, mileage and supported specifications, with sources close at hand.'], ['spark', 'Choose your priorities', 'Find your match on value, cost, comfort and more. Understand the reasons and the trade-off.']].map(([icon, title, text], index) => <div key={title}><span className="landing-step-icon"><Icon name={icon} size={28} /></span><span className="step-label">Step {index + 1}</span><h3>{title}</h3><p>{text}</p></div>)}</div></section>
+          <section className="final-cta"><h2>Make room for a better decision.</h2><p>Start with a car you already have your eye on.</p><button type="button" onClick={startImport}>Import your first car <Icon name="arrow" size={20} /></button></section>
         </section>
       </>}
-      {page === 'compare' && <VehicleComparison cars={cars} importForm={importForm} navigate={navigate} removeCar={id => { setCars(previous => previous.filter(car => car.legacyItemId !== id)); setNotice('Car removed. You can import a replacement.'); }} clearCars={() => { setCars([]); setNotice('Comparison cleared.'); }} />}
-      {page === 'decide' && <DecisionDashboard cars={cars} mode={mode} setMode={setMode} />}
+      {page === 'compare' && <VehicleComparison cars={cars} retryResearch={retryResearch} importForm={importForm} navigate={navigate} removeCar={id => { for (const controller of enrichmentTasks.current) if (controller.vehicleId === id) controller.abort(); setCars(previous => previous.filter(car => car.legacyItemId !== id)); setNotice('Car removed. You can import a replacement.'); }} clearCars={() => { for (const controller of enrichmentTasks.current) controller.abort(); setCars([]); setNotice('Comparison cleared.'); }} />}
+      {page === 'decide' && <DecisionDashboard cars={cars} retryResearch={retryResearch} mode={mode} setMode={setMode} />}
     </m.div></main><footer><a className="footer-brand" href="#import">Dilemma<span>.</span></a><span>A clearer road to your next car.</span><span className="prototype-label">In memory only · Refresh clears your shortlist</span></footer>
   </div></MotionConfig></LazyMotion>;
 }

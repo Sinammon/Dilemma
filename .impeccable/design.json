@@ -1,0 +1,418 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-30T14:10:57.513750+00:00",
+  "title": "Design System: Dilemma",
+  "extensions": {
+    "colorMeta": {
+      "background": {
+        "role": "neutral",
+        "displayName": "Deep Purple Ground",
+        "tonalRamp": [
+          "oklch(15% 0.0134 296.01)",
+          "oklch(25% 0.0223 296.01)",
+          "oklch(35% 0.0312 296.01)",
+          "oklch(45% 0.0402 296.01)",
+          "oklch(60% 0.0446 296.01)",
+          "oklch(72% 0.0339 296.01)",
+          "oklch(84% 0.0232 296.01)",
+          "oklch(95% 0.0134 296.01)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Purple Surface",
+        "tonalRamp": [
+          "oklch(15% 0.0228 296.25)",
+          "oklch(25% 0.0380 296.25)",
+          "oklch(35% 0.0532 296.25)",
+          "oklch(45% 0.0684 296.25)",
+          "oklch(60% 0.0760 296.25)",
+          "oklch(72% 0.0577 296.25)",
+          "oklch(84% 0.0395 296.25)",
+          "oklch(95% 0.0228 296.25)"
+        ]
+      },
+      "surface-raised": {
+        "role": "neutral",
+        "displayName": "Raised Violet",
+        "tonalRamp": [
+          "oklch(15% 0.0379 291.03)",
+          "oklch(25% 0.0631 291.03)",
+          "oklch(35% 0.0884 291.03)",
+          "oklch(45% 0.1137 291.03)",
+          "oklch(60% 0.1263 291.03)",
+          "oklch(72% 0.0960 291.03)",
+          "oklch(84% 0.0657 291.03)",
+          "oklch(95% 0.0379 291.03)"
+        ]
+      },
+      "surface-hover": {
+        "role": "neutral",
+        "displayName": "Purple Hover",
+        "tonalRamp": [
+          "oklch(15% 0.0249 298.24)",
+          "oklch(25% 0.0416 298.24)",
+          "oklch(35% 0.0582 298.24)",
+          "oklch(45% 0.0748 298.24)",
+          "oklch(60% 0.0832 298.24)",
+          "oklch(72% 0.0632 298.24)",
+          "oklch(84% 0.0432 298.24)",
+          "oklch(95% 0.0249 298.24)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Plum Boundary",
+        "tonalRamp": [
+          "oklch(15% 0.0238 301.30)",
+          "oklch(25% 0.0397 301.30)",
+          "oklch(35% 0.0556 301.30)",
+          "oklch(45% 0.0714 301.30)",
+          "oklch(60% 0.0794 301.30)",
+          "oklch(72% 0.0603 301.30)",
+          "oklch(84% 0.0413 301.30)",
+          "oklch(95% 0.0238 301.30)"
+        ]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Near-White Text",
+        "tonalRamp": [
+          "oklch(15% 0.0037 299.80)",
+          "oklch(25% 0.0062 299.80)",
+          "oklch(35% 0.0086 299.80)",
+          "oklch(45% 0.0111 299.80)",
+          "oklch(60% 0.0124 299.80)",
+          "oklch(72% 0.0094 299.80)",
+          "oklch(84% 0.0064 299.80)",
+          "oklch(95% 0.0037 299.80)"
+        ]
+      },
+      "text-secondary": {
+        "role": "neutral",
+        "displayName": "Lavender Secondary",
+        "tonalRamp": [
+          "oklch(15% 0.0126 301.00)",
+          "oklch(25% 0.0211 301.00)",
+          "oklch(35% 0.0295 301.00)",
+          "oklch(45% 0.0379 301.00)",
+          "oklch(60% 0.0422 301.00)",
+          "oklch(72% 0.0320 301.00)",
+          "oklch(84% 0.0219 301.00)",
+          "oklch(95% 0.0126 301.00)"
+        ]
+      },
+      "action": {
+        "role": "primary",
+        "displayName": "Action Blue",
+        "tonalRamp": [
+          "oklch(15% 0.0463 250.44)",
+          "oklch(25% 0.0772 250.44)",
+          "oklch(35% 0.1081 250.44)",
+          "oklch(45% 0.1390 250.44)",
+          "oklch(60% 0.1544 250.44)",
+          "oklch(72% 0.1173 250.44)",
+          "oklch(84% 0.0803 250.44)",
+          "oklch(95% 0.0463 250.44)"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Clear Sky Accent",
+        "tonalRamp": [
+          "oklch(15% 0.0367 245.68)",
+          "oklch(25% 0.0612 245.68)",
+          "oklch(35% 0.0857 245.68)",
+          "oklch(45% 0.1101 245.68)",
+          "oklch(60% 0.1224 245.68)",
+          "oklch(72% 0.0930 245.68)",
+          "oklch(84% 0.0636 245.68)",
+          "oklch(95% 0.0367 245.68)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Deep Purple Ink",
+        "tonalRamp": [
+          "oklch(15% 0.0134 296.01)",
+          "oklch(25% 0.0223 296.01)",
+          "oklch(35% 0.0312 296.01)",
+          "oklch(45% 0.0402 296.01)",
+          "oklch(60% 0.0446 296.01)",
+          "oklch(72% 0.0339 296.01)",
+          "oklch(84% 0.0232 296.01)",
+          "oklch(95% 0.0134 296.01)"
+        ]
+      },
+      "warning": {
+        "role": "status",
+        "displayName": "Amber Warning",
+        "tonalRamp": [
+          "oklch(15% 0.0328 82.66)",
+          "oklch(25% 0.0547 82.66)",
+          "oklch(35% 0.0766 82.66)",
+          "oklch(45% 0.0985 82.66)",
+          "oklch(60% 0.1094 82.66)",
+          "oklch(72% 0.0832 82.66)",
+          "oklch(84% 0.0569 82.66)",
+          "oklch(95% 0.0328 82.66)"
+        ]
+      },
+      "warning-surface": {
+        "role": "status",
+        "displayName": "Amber State Ground",
+        "tonalRamp": [
+          "oklch(15% 0.0100 75.78)",
+          "oklch(25% 0.0167 75.78)",
+          "oklch(35% 0.0233 75.78)",
+          "oklch(45% 0.0300 75.78)",
+          "oklch(60% 0.0333 75.78)",
+          "oklch(72% 0.0253 75.78)",
+          "oklch(84% 0.0173 75.78)",
+          "oklch(95% 0.0100 75.78)"
+        ]
+      },
+      "error": {
+        "role": "status",
+        "displayName": "Rose Error",
+        "tonalRamp": [
+          "oklch(15% 0.0324 11.62)",
+          "oklch(25% 0.0540 11.62)",
+          "oklch(35% 0.0756 11.62)",
+          "oklch(45% 0.0972 11.62)",
+          "oklch(60% 0.1080 11.62)",
+          "oklch(72% 0.0821 11.62)",
+          "oklch(84% 0.0562 11.62)",
+          "oklch(95% 0.0324 11.62)"
+        ]
+      },
+      "error-surface": {
+        "role": "status",
+        "displayName": "Rose State Ground",
+        "tonalRamp": [
+          "oklch(15% 0.0159 352.48)",
+          "oklch(25% 0.0265 352.48)",
+          "oklch(35% 0.0372 352.48)",
+          "oklch(45% 0.0478 352.48)",
+          "oklch(60% 0.0531 352.48)",
+          "oklch(72% 0.0404 352.48)",
+          "oklch(84% 0.0276 352.48)",
+          "oklch(95% 0.0159 352.48)"
+        ]
+      },
+      "success": {
+        "role": "status",
+        "displayName": "Mint Success",
+        "tonalRamp": [
+          "oklch(15% 0.0259 166.15)",
+          "oklch(25% 0.0432 166.15)",
+          "oklch(35% 0.0605 166.15)",
+          "oklch(45% 0.0778 166.15)",
+          "oklch(60% 0.0865 166.15)",
+          "oklch(72% 0.0657 166.15)",
+          "oklch(84% 0.0450 166.15)",
+          "oklch(95% 0.0259 166.15)"
+        ]
+      },
+      "success-surface": {
+        "role": "status",
+        "displayName": "Mint State Ground",
+        "tonalRamp": [
+          "oklch(15% 0.0108 179.33)",
+          "oklch(25% 0.0179 179.33)",
+          "oklch(35% 0.0251 179.33)",
+          "oklch(45% 0.0323 179.33)",
+          "oklch(60% 0.0359 179.33)",
+          "oklch(72% 0.0272 179.33)",
+          "oklch(84% 0.0186 179.33)",
+          "oklch(95% 0.0108 179.33)"
+        ]
+      },
+      "photo-mat": {
+        "role": "neutral",
+        "displayName": "Neutral Photo Mat",
+        "tonalRamp": [
+          "oklch(15% 0.0030 303.10)",
+          "oklch(25% 0.0051 303.10)",
+          "oklch(35% 0.0071 303.10)",
+          "oklch(45% 0.0091 303.10)",
+          "oklch(60% 0.0102 303.10)",
+          "oklch(72% 0.0077 303.10)",
+          "oklch(84% 0.0053 303.10)",
+          "oklch(95% 0.0030 303.10)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Large invitation headings."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Workspace page headings."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Section headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Primary interface prose."
+      },
+      "button": {
+        "displayName": "Button",
+        "purpose": "Action labels."
+      },
+      "evidence": {
+        "displayName": "Evidence",
+        "purpose": "Readable source and state information."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "control-transition",
+        "value": "background-color 160ms, border-color 160ms",
+        "purpose": "Brief hover and boundary feedback."
+      },
+      {
+        "name": "preview-transition",
+        "value": "300ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Manual preview position/opacity transitions."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "animation-duration: .01ms; animation-iteration-count: 1; transition-duration: .01ms",
+        "purpose": "Suppress nonessential animation and smooth scroll under reduced-motion preferences."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile",
+        "value": "767px"
+      },
+      {
+        "name": "preview-compact",
+        "value": "1000px"
+      },
+      {
+        "name": "workspace-compact",
+        "value": "1100px"
+      },
+      {
+        "name": "narrow-evidence",
+        "value": "400px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Blue primary action with dark ink and a visible keyboard focus ring.",
+      "html": "<button class=\"ds-button-primary\">Import a car</button>",
+      "css": ".ds-button-primary{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:44px;padding:12px 20px;border:1px solid transparent;border-radius:var(--radius-control,8px);font-family:var(--font-body,'Satoshi',sans-serif);font-size:16px;font-weight:640;line-height:1.38;cursor:pointer;transition:background-color 160ms,border-color 160ms;background:var(--action,#339cfc);color:var(--ink,#100820)}.ds-button-primary:hover{background:var(--accent,#5cb4fc)}.ds-button-primary:focus-visible{outline:3px solid var(--accent,#5cb4fc);outline-offset:4px;}.ds-button-primary:disabled{opacity:.6;cursor:not-allowed}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Quiet bordered action for supporting controls.",
+      "html": "<button class=\"ds-button-secondary\">Clear comparison</button>",
+      "css": ".ds-button-secondary{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:44px;padding:12px 20px;border:1px solid transparent;border-radius:var(--radius-control,8px);font-family:var(--font-body,'Satoshi',sans-serif);font-size:16px;font-weight:640;line-height:1.38;cursor:pointer;transition:background-color 160ms,border-color 160ms;background:transparent;color:var(--text,#f8f5ff);border-color:var(--border,#493467)}.ds-button-secondary:hover{background:var(--surface-hover,#321e52)}.ds-button-secondary:focus-visible{outline:3px solid var(--accent,#5cb4fc);outline-offset:4px;}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Dark field with secondary placeholder, error border and explicit focus.",
+      "html": "<label class=\"ds-field-label\" for=\"ds-listing\">Vehicle listing URL</label><input class=\"ds-field\" id=\"ds-listing\" type=\"url\" placeholder=\"Paste an eBay.ca car link?\">",
+      "css": ".ds-field-label{display:block;margin-bottom:12px;font-family:var(--font-body,'Satoshi',sans-serif);color:var(--text,#f8f5ff);font-size:16px;font-weight:600}.ds-field{width:100%;min-height:48px;padding:12px;background:var(--background,#100820);color:var(--text,#f8f5ff);border:1px solid var(--border,#493467);border-radius:var(--radius-control,8px);font-family:var(--font-body,'Satoshi',sans-serif);font-size:16px;caret-color:var(--accent,#5cb4fc)}.ds-field::placeholder{color:var(--text-secondary,#bdb2d2);opacity:1}.ds-field:focus-visible{outline:3px solid var(--accent,#5cb4fc);outline-offset:4px;}.ds-field[aria-invalid=true]{border-color:var(--error,#ff9ca9)}"
+    },
+    {
+      "name": "Primary Navigation",
+      "kind": "nav",
+      "description": "Readable route links with an active blue underline.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Example navigation\"><a href=\"#import\">Import</a><a href=\"#compare\" aria-current=\"page\">Compare</a><a href=\"#decide\">Help Me Decide</a></nav>",
+      "css": ".ds-nav{display:flex;flex-wrap:wrap;gap:28px;font-family:var(--font-body,'Satoshi',sans-serif);font-size:16px}.ds-nav a{display:inline-flex;align-items:center;min-height:44px;color:var(--text-secondary,#bdb2d2);font-weight:600;text-decoration:none}.ds-nav a:hover{color:var(--text,#f8f5ff)}.ds-nav a[aria-current=page]{color:var(--text,#f8f5ff);text-decoration:underline;text-decoration-color:var(--action,#339cfc);text-underline-offset:10px}.ds-nav a:focus-visible{outline:3px solid var(--accent,#5cb4fc);outline-offset:4px;}"
+    },
+    {
+      "name": "Factory Evidence Badge",
+      "kind": "chip",
+      "refersTo": "evidence-badge",
+      "description": "Source distinction expressed by words and accent text.",
+      "html": "<span class=\"ds-evidence-badge\">Factory reference</span>",
+      "css": ".ds-evidence-badge{display:inline-block;padding:4px 8px;border:1px solid var(--border,#493467);border-radius:6px;color:var(--accent,#5cb4fc);font-family:var(--font-body,'Satoshi',sans-serif);font-size:14px;font-weight:500;line-height:1.4}"
+    },
+    {
+      "name": "Vehicle Surface",
+      "kind": "card",
+      "refersTo": "surface-card",
+      "description": "Solid bordered surface for a fictional example vehicle.",
+      "html": "<article class=\"ds-card\"><h3>2018 Honda Civic</h3><p>Fictional example ? seller details require confirmation</p></article>",
+      "css": ".ds-card{padding:20px;background:var(--surface,#22113f);color:var(--text,#f8f5ff);border:1px solid var(--border,#493467);border-radius:var(--radius-card,12px)}.ds-card h3{margin:0 0 16px;font-family:var(--font-display,'Clash Grotesk',sans-serif);font-size:24px;font-weight:540;line-height:1.18;letter-spacing:-.02em}.ds-card p{margin:0;font-family:var(--font-body,'Satoshi',sans-serif);font-size:14px;line-height:1.55;color:var(--text-secondary,#bdb2d2)}"
+    },
+    {
+      "name": "Selected Decision Priority",
+      "kind": "button",
+      "refersTo": "priority-selected",
+      "description": "Active decision mode with SVG icon, accent fill and dark ink.",
+      "html": "<button class=\"ds-priority\" aria-pressed=\"true\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" aria-hidden=\"true\"><path d=\"M12 2v20m6-15c-1-4-12-4-12 1 0 5 12 3 12 8 0 5-11 5-12 1\"/></svg><strong>Lowest Cost</strong></button>",
+      "css": ".ds-priority{display:flex;flex-direction:column;align-items:flex-start;gap:12px;min-height:44px;padding:20px;background:var(--accent,#5cb4fc);color:var(--ink,#100820);border:1px solid var(--accent,#5cb4fc);border-radius:var(--radius-card,12px);font-family:var(--font-body,'Satoshi',sans-serif);font-size:16px;cursor:pointer}.ds-priority strong{font-weight:700}.ds-priority:hover{background:var(--accent,#5cb4fc)}.ds-priority:focus-visible{outline:3px solid var(--accent,#5cb4fc);outline-offset:4px;}"
+    },
+    {
+      "name": "Evidence Disclosure",
+      "kind": "custom",
+      "refersTo": "disclosure",
+      "description": "Native expandable source details with a readable summary.",
+      "html": "<details class=\"ds-disclosure\"><summary>Specifications, amenities &amp; sources</summary><p>Factory ratings are reference values, not measured output.</p></details>",
+      "css": ".ds-disclosure{background:var(--background,#100820);color:var(--text,#f8f5ff);border:1px solid var(--border,#493467);border-radius:var(--radius-card,12px);font-family:var(--font-body,'Satoshi',sans-serif);font-size:14px;line-height:1.7}.ds-disclosure summary{min-height:48px;padding:20px;font-weight:640;cursor:pointer}.ds-disclosure summary::marker{color:var(--accent,#5cb4fc)}.ds-disclosure summary:hover{color:var(--accent,#5cb4fc)}.ds-disclosure summary:focus-visible{outline:3px solid var(--accent,#5cb4fc);outline-offset:4px;}.ds-disclosure[open]>summary{border-bottom:1px solid var(--border,#493467);margin-bottom:20px}.ds-disclosure p{margin:0;padding:0 20px 20px;color:var(--text-secondary,#bdb2d2)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Purple Component Playground",
+    "overview": "Dilemma adapts the user-supplied Uizard reference into a dark purple system for Canadian car comparison. Clear blue actions and geometric display type establish the identity; solid surfaces and legible evidence support sustained reading. The reference is inspiration, not a copied product identity.\n\nThe system uses tonal layering and thin boundaries rather than shadows. Car photographs remain uncropped against neutral mats, while labels distinguish facts, sources, warnings and uncertainty. The photo-credit page carries the same palette and self-hosted typefaces in a narrower reading layout.",
+    "keyCharacteristics": [
+      "Purple tonal surfaces with one blue action hierarchy.",
+      "Clash Grotesk headings with Satoshi interface text.",
+      "Readable source labels, status text and tabular vehicle values.",
+      "Contained car photography and manual preview interactions."
+    ],
+    "rules": [
+      {
+        "name": "The Dark Ink Rule",
+        "body": "Bright blue action and selected-state fills use dark ink, never white button text.",
+        "section": "colors"
+      },
+      {
+        "name": "The Evidence Rule",
+        "body": "State is expressed in words as well as color; source provenance and unresolved values remain readable.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Voices Rule",
+        "body": "Clash Grotesk carries headings; Satoshi carries controls, prose, labels and vehicle values.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tonal Depth Rule",
+        "body": "Resting surfaces use solid color and thin borders, without drop shadows.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use the named color and type roles across all screens.",
+      "Do keep car photographs contained and source labels close to their facts.",
+      "Do preserve keyboard focus, reduced motion and explicit state wording.",
+      "Do treat comparison-table scrolling as local, not permission for page overflow."
+    ],
+    "donts": [
+      "Don't replace dark ink with white on blue action fills.",
+      "Don't turn absent specifications into visual certainty or remove visible warnings.",
+      "Don't crop vehicle photographs to fill a frame.",
+      "Don't introduce autoplay, decorative eyebrow labels or invented proof."
+    ]
+  }
+}

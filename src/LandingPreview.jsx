@@ -26,7 +26,7 @@ function PreviewSlide({ stage, direction, reduced, children }) {
   const present = useIsPresent();
   return <m.div className={`showcase-slide showcase-slide-${stage}`} role="tabpanel" id={`preview-panel-${stage}`} aria-labelledby={`preview-step-${stage}`} aria-hidden={!present} inert={!present ? true : undefined}
     custom={direction} variants={slideVariants} initial={reduced ? false : 'enter'} animate="center" exit={reduced ? { opacity: 0 } : 'exit'}
-    transition={{ duration: reduced ? 0 : 0.5, ease: [0.22, 1, 0.36, 1] }}>{children}</m.div>;
+    transition={{ duration: reduced ? 0 : 0.3, ease: [0.22, 1, 0.36, 1] }}>{children}</m.div>;
 }
 
 export default function LandingPreview({ onStart }) {
@@ -75,7 +75,7 @@ export default function LandingPreview({ onStart }) {
         {stage === 2 && <div className="showcase-decision"><h2>What matters most to you?</h2><div className="sample-priorities" role="group" aria-label="Illustrative decision priority">{priorities.map(item => <button key={item.id} type="button" aria-pressed={priority === item.id} onClick={() => setPriority(item.id)}>{item.label}</button>)}</div>
           <m.div className="preview-match" key={priority} initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: reduced ? 0 : 0.2 }} aria-live="polite" aria-atomic="true">
             <div className="match-photo">{photo(choice.car)}<span><Icon name="spark" size={13} /> Example best match</span></div>
-            <div className="match-copy"><p className="match-eyebrow">{choice.label}</p><h3>{choice.car.year} {choice.car.name}</h3><p className="match-reason">{choice.reason}</p><ul>{choice.strengths.map(strength => <li key={strength}><Icon name="check" size={13} />{strength}</li>)}</ul><p className="match-tradeoff"><b>Trade-off</b> {choice.tradeoff}</p></div>
+            <div className="match-copy"><h3>{choice.car.year} {choice.car.name}</h3><p className="match-reason">{choice.reason}</p><ul>{choice.strengths.map(strength => <li key={strength}><Icon name="check" size={13} />{strength}</li>)}</ul><p className="match-tradeoff"><b>Trade-off</b> {choice.tradeoff}</p></div>
           </m.div></div>}
       </PreviewSlide></AnimatePresence></div>
       <button className="showcase-arrow showcase-previous" type="button" aria-label="Previous preview step" onClick={() => go((stage + 2) % 3, -1)}><Icon name="chevron" size={23} /></button><button className="showcase-arrow showcase-next" type="button" aria-label="Next preview step" onClick={() => go((stage + 1) % 3, 1)}><Icon name="chevron" size={23} /></button>

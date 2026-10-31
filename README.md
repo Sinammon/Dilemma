@@ -2,9 +2,32 @@
 
 A temporary, in-memory eBay.ca used-car comparison for a Grade 12 CS demo. React + JavaScript + CSS, Vite, and a minimal Node.js API. Import up to four cars, view real photos, compare available fields and specifications, and read seller descriptions as safe plain text.
 
+## Automatic typical-model specifications and mileage (30 October 2026)
+
+After importing a car, Dilemma can fill missing comparison specifications with cited AI web research. Single values matching the known configuration and supported standard equipment can contribute to Help Me Decide. The UI labels them **Typical model spec**. Ranges, alternatives and optional equipment are context only. Existing seller, VIN and factory values take precedence; fuel calculations still use the separate NRCan matcher.
+
+1. Open [Google AI Studio API keys](https://aistudio.google.com/api-keys), create/select a **Free Tier** project, and leave billing unlinked. Verify the project's Billing Tier in AI Studio. Do not enable billing or link an existing paid project. The app cannot inspect an API key's billing tier.
+2. The backend uses `gemini-3.5-flash-lite`: one candidate-source discovery call, followed by URL-context reading and structured extraction. Both generation and URL context are currently available on the free tier. Google Search grounding is never enabled. The previous Gemini 2.5 models reject new accounts; they are no longer used. Check [current pricing](https://ai.google.dev/gemini-api/docs/pricing) before changing model or billing settings.
+3. Set `GEMINI_API_KEY` privately in your local ignored `.env`, using `.env.example` as the template. Restart `npm run server`; run `npm run dev` for the frontend. Never paste the key into chat or source code. There is no browser-side key or `VITE_` variable.
+4. For an existing Vercel deployment, configure the same secret as a server-side environment variable for the intended environment and redeploy when ready. This code change adds `/api/model-specs` with a 60-second function budget; its research deadline is 45 seconds. This update does not deploy anything or change billing settings.
+
+The backend performs at most two bounded calls per lookup, with no automatic retries or paid fallback. Only candidate URLs reported successfully retrieved by URL context can support returned facts or insights. Numeric table headings retain their units. A partial result means some fields or categories could not be established. Free quota/access failures and missing keys leave existing details usable. Queries contain only model/configuration details, not seller descriptions, VINs, contact details or prices. Google's free-tier content may be used to improve its products; see its pricing/terms. Listings and research stay in the current comparison's memory; refreshing clears them. Demo mode makes no AI calls.
+
+Mileage now chooses the first number-and-unit match in description → title → structured fields, without reconciling conflicts. It accepts `2000 km`, `2000kms`, `2k kms`, `75k miles` and long unit names. With no attached-unit reading, a labelled or structured reading uses an explicit mileage-unit declaration or defaults to kilometres. The display marks assumed kilometres. No reading means Unknown. The raw importer payload remains unchanged; these are comparison rules.
+
+Run `npm test` and `npm run build` for offline and rendered-journey validation. `npm run test:model-specs:live` runs independent reference configurations using the private free-tier key, with results printed only to the console. The evaluator includes 30 independent NRCan configurations plus nine reviewed manufacturer horsepower/torque configurations. It reports correctness **among populated numeric fields** separately from field and category coverage. Independently reviewed model observations are printed beside live insights for manual semantic audit; category coverage is not an accuracy percentage. It does not establish accuracy for every amenity or claim. A missing key exits without making requests. No 90% accuracy claim is shown in the product.
+
+### Category recommendations and retry
+
+Best Value, Affordability, Comfort and Balanced are the four primary choices; More priorities contains Practicality and Performance. Cards show up to three reasons, one trade-off and three relevant facts. Full model research and citations remain in expandable details.
+
+When all contenders have comparable measurements and sourced category assessments, measurements contribute 75% and model assessments 25%. The rubric is favourable (2), mixed (1), or unfavourable (0), derived from every applicable cited observation. Unsupported research is excluded for everyone; research alone does not create a numeric winner. Existing condition/VIN safeguards remain. Reliability generalizations, owner anecdotes, insurance claims and fabricated savings are excluded.
+
+After changing `.env`, restart the backend: it reads the file at startup. Use **Retry research** after a failure to update the current shortlist without reimporting. Successful research shows specification/note counts, **View results** and **Refresh research**. View results opens that car's evidence and research disclosures. A verified value for an unconfirmed reference version is labelled **Reference version · unconfirmed**, shows its configuration and receives no numeric points. A failed refresh preserves previous usable research. Removing/replacing a car, clearing the shortlist or starting another lookup cancels stale work. No imported listing or research results are persisted.
+
 ## Decision engine
 
-See [DECIDE_REDESIGN.md](DECIDE_REDESIGN.md) for the simplified decision screen and labeled missing-data starting points. See [ENRICHMENT.md](ENRICHMENT.md) for the current source layers, five scoped research profiles, honest missing-spec fallbacks, remaining integrations and the repeatable **Try fictional demo** path. The demo requires no eBay credentials. Research is a curated reference library with identifiable claim-level sources; general AI web research is not connected; a free on-demand NHTSA model recall lookup is available.
+See [DECIDE_REDESIGN.md](DECIDE_REDESIGN.md) for the simplified decision screen and labeled missing-data starting points. See [ENRICHMENT.md](ENRICHMENT.md) for the current source layers, five scoped research profiles, honest missing-spec fallbacks, remaining integrations and the repeatable **Try fictional demo** path. The demo requires no eBay credentials. Model review opinions use a curated reference library with identifiable claim-level sources; optional AI web lookup supplies typical-model specifications, and a free on-demand NHTSA model recall lookup is available.
 
 Vehicle evidence now includes optional NHTSA vPIC VIN decoding and strict matching against a bundled official NRCan fuel-consumption snapshot. Source badges distinguish seller claims, original VIN records, corroboration and unknown/conflicting values. See [REVIEW.md](REVIEW.md) for the current scoring rules, source limits, Java comparisons, worked example and four-minute demo outline. User comparisons remain temporary and in memory.
 
@@ -103,7 +126,7 @@ Vercel may automatically start a Production deployment if main is the tracked pr
 ### Verify after deployment
 
 - Open https://YOUR-DEPLOYMENT/api/health: expect {"ok":true}.
-- Load the home page and import a currently available eBay.ca complete used-vehicle URL. Check real photos, price/currency, comparison fields and seller description. Missing units must remain explicitly unknown.
+- Load the home page and import a currently available eBay.ca complete used-vehicle URL. Check real photos, price/currency, comparison fields and seller description. Missing mileage units default to kilometres in the comparison, with the assumption labelled.
 - Add up to four different cars, check duplicate protection, remove a car, and refresh to confirm the shortlist clears.
 - In browser developer tools → Network, inspect /api/import: it must return JSON and Cache-Control: no-store. A GET to /api/import should return 405 JSON, not the homepage. A broken listing should produce a useful error.
 - Check a phone-sized layout. Check the Vercel deployment's function logs for status/errors without adding payload or credential logging.
@@ -139,7 +162,7 @@ The app preserves raw mileage and explicit units, currency, missing fields and s
 2. backend/handler.mjs: the shared HTTP controller. Validates requests, calls eBay, returns safe errors and no-store JSON, and turns seller HTML into inert text. server.mjs adapts local Node requests to it; api/import.js exposes the same handler on Vercel.
 3. ebay-feasibility.mjs: shared Production authentication, strict eBay.ca URL parsing and vehicle field extraction. Its standalone CLI still works; the backend passes quiet: true to suppress listing diagnostics.
 
-Visual styling lives in src/styles.css; Vite's /api proxy lives in vite.config.js. All existing Git history is retained. The original app is on codex/dilemma-functional; Vercel preparation is on codex/vercel-deployment. The initial homepage was checkpointed before functional changes.
+Shared visual tokens and foundations live in src/theme.css, with scoped stylesheets for site chrome, homepage, comparison, decision and evidence. DESIGN.md records the Uizard-inspired dark system, PRODUCT.md records product constraints, and .impeccable/design.json holds machine-readable rules. Vite's /api proxy lives in vite.config.js. All existing Git history is retained. The original app is on codex/dilemma-functional; Vercel preparation is on codex/vercel-deployment. The initial homepage was checkpointed before functional changes.
 
 ## Your tiny code change
 

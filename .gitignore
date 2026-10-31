@@ -3,3 +3,10 @@
 !.env.example
 node_modules/
 dist/
+.impeccable/review/
+.impeccable/questions/
+.impeccable/mocks/
+.impeccable/live/
+.impeccable/hook.cache.json
+.impeccable/hook.pending.json
+.impeccable/config.local.json
