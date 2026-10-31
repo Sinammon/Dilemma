@@ -23,6 +23,7 @@ export function SpecValue({ spec }) {
 export function ResearchAction({ car, retryResearch }) {
   if (car.demo || !retryResearch) return null;
   const busy = ['loading', 'loading-model'].includes(car.enrichment?.status);
+  const checkingVehicle = car.enrichment?.status === 'loading';
   const research = car.enrichment?.modelSpecs;
   const specs = Object.keys(research?.fields || {}).length, notes = research?.insights?.length || 0;
   const ready = specs + notes > 0;
@@ -35,8 +36,8 @@ export function ResearchAction({ car, retryResearch }) {
     target.focus({ preventScroll: true });
     target.scrollIntoView?.({ block: 'start', behavior: 'instant' });
   }
-  const action = ready ? 'Refresh research' : failed ? 'Retry research' : 'Research model';
-  return <div className="research-control">{ready && <small role="status">Research ready: {specs} specifications · {notes} sourced notes</small>}<div>{ready && <button type="button" className="text-button" onClick={showResults}>View results</button>}<button type="button" data-action="model-research" className="text-button" disabled={busy} onClick={() => retryResearch(car)} aria-label={`${action} for ${car.year || ''} ${car.make || ''} ${car.model || ''}`}>{busy ? 'Researching...' : action}</button></div>{failed && <small>{research.reason}</small>}{research?.lastAttempt && <small>{research.lastAttempt.reason} Previous research is still available.</small>}</div>;
+  const action = checkingVehicle ? 'Checking vehicle...' : busy ? 'Restart research' : ready ? 'Refresh research' : failed ? 'Retry research' : 'Research model';
+  return <div className="research-control">{busy ? <small role="status">{checkingVehicle ? 'Checking VIN and vehicle details before research.' : 'Researching model sources. You can restart this search if it stalls.'}</small> : ready && <small role="status">Research ready: {specs} specifications · {notes} sourced notes</small>}<div>{ready && <button type="button" className="text-button" onClick={showResults}>View results</button>}<button type="button" data-action="model-research" className="text-button" disabled={checkingVehicle} onClick={() => retryResearch(car)} aria-label={`${action} for ${car.year || ''} ${car.make || ''} ${car.model || ''}`}>{action}</button></div>{!busy && failed && <small>{research.reason}</small>}{research?.lastAttempt && <small>{research.lastAttempt.reason} Previous research is still available.</small>}</div>;
 }
 export function SourceStatus({ car, retryResearch }) {
   const enrichment = car.enrichment;

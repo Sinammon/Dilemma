@@ -5,6 +5,9 @@ export const normalized = value => String(value ?? '').toLowerCase().replace(/[^
 const number = value => /^\d+(?:\.\d+)?$/.test(String(value).trim()) ? Number(value) : null;
 const positive = value => number(value) > 0 ? number(value) : null;
 export const FIELD_LABELS = { year: 'Year', make: 'Make', model: 'Model', trim: 'Trim', market: 'Original market', displacement: 'Engine displacement (L)', engineType: 'Engine configuration', induction: 'Induction', cylinders: 'Cylinders', horsepower: 'Power (hp)', torque: 'Torque (Nm)', transmission: 'Transmission', transmissionSpeeds: 'Transmission speeds', transmissionCode: 'Transmission code', drivetrain: 'Drivetrain', fuelType: 'Fuel type', bodyType: 'Body type', seats: 'Seating capacity' };
+// A seating difference still requires review, but does not change model identity
+// or engine/body configuration. Never let research replace that seller value.
+export const researchVinMismatches = car => (car.enrichment?.vin?.mismatches || []).filter(item => item.field !== FIELD_LABELS.seats);
 export const FEATURE_RULES = [
   ['Heated seats', /\bheated (?:front |rear )?seats?\b/i], ['Leather seats', /\b(?:full[- ]grain )?leather (?:seats?|interior|upholstery)\b/i],
   ['Navigation', /\b(?:navigation|gps)\b/i], ['Backup camera', /\b(?:backup|back[- ]up|rear[- ]?view|reversing) camera\b/i],
@@ -198,7 +201,7 @@ export function extractVehicleSpecs(car) {
     return [label, result];
   }));
   const research = car.enrichment?.modelSpecs;
-  if (['matched', 'partial'].includes(research?.status) && !vin?.mismatches?.length && !CONFIG_FIELDS.some(key => specs[key]?.status === 'conflict')) {
+  if (['matched', 'partial'].includes(research?.status) && !researchVinMismatches(car).length && !CONFIG_FIELDS.some(key => specs[key]?.status === 'conflict')) {
     const input = modelSpecsInput({ ...Object.fromEntries(CONFIG_FIELDS.filter(key => specs[key]?.value != null).map(key => [key, specs[key].value])), fields: MODEL_FIELDS });
     if (input) for (const [field, finding] of Object.entries(research.fields || {})) {
       const target = field.startsWith('feature:') ? features[field.slice(8)] : specs[field];

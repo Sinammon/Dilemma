@@ -199,8 +199,9 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     globalThis.fetch = async (input, init) => {
       if (String(input).startsWith('/data/fuel/')) return Response.json({ columns: [], rows: [] });
       if (input === '/api/model-specs') return new Promise(resolve => researchPending.push({ resolve, signal: init.signal }));
+      if (input === '/api/vehicle-data') return Response.json({ vin: { status: 'decoded', fields: { year: '2018', make: 'Honda', model: 'Civic', seats: 5 } } });
       researchedImports++;
-      return Response.json({ vehicle: { legacyItemId: `${researchedImports}77777777777`, year: '2018', make: 'Honda', model: 'Civic', description: 'Odometer: 2k kms.', images: [], itemSpecifics: [] } });
+      return Response.json({ vehicle: { legacyItemId: `${researchedImports}77777777777`, year: '2018', make: 'Honda', model: 'Civic', description: 'Odometer: 2k kms.', images: [], itemSpecifics: researchedImports === 4 ? [{ name: 'Seating capacity', value: '4' }] : [], vin: researchedImports === 4 ? '1HGCM82633A004352' : null } });
     };
     await change('#listing-url', 'https://www.ebay.ca/itm/177777777777');
     await submit();
@@ -234,7 +235,7 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     assert.equal(document.querySelector('.vehicle-review').open, true, 'View results reveals the car evidence without another API request');
     assert.equal(document.activeElement, document.querySelector('.vehicle-summary'));
     await act(async () => document.querySelector('.car-card [data-action="model-research"]').click());
-    assert.equal(document.querySelector('.car-card [data-action="model-research"]').disabled, true);
+    assert.equal(document.querySelector('.car-card [data-action="model-research"]').textContent, 'Restart research');
     assert.match(document.querySelector('table').textContent, /158/);
     await act(async () => {
       researchPending.at(-1).resolve(Response.json({ modelSpecs: { status: 'quota', fields: {}, reason: 'Free research quota reached.' } }));
@@ -243,6 +244,40 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     assert.match(document.querySelector('table').textContent, /158/);
     assert.match(document.querySelector('.car-card').textContent, /Previous research is still available/);
     assert.equal(document.querySelectorAll('.car-card').length, 2);
+    // A full shortlist must still search and retry its fourth car independently.
+    for (const id of ['377777777777', '477777777777']) {
+      await change('#listing-url', `https://www.ebay.ca/itm/${id}`);
+      await submit();
+    }
+    assert.equal(document.querySelectorAll('.car-card').length, 4);
+    const fourthCard = () => document.querySelectorAll('.car-card')[3];
+    const fourthAction = () => fourthCard().querySelector('[data-action="model-research"]');
+    assert.match(fourthCard().textContent, /Seating capacity: listing 4; VIN record 5/);
+    assert.equal(researchPending.length, 5, 'each import starts research, including the fourth');
+    await act(async () => {
+      researchPending.at(-1).resolve(Response.json({ modelSpecs: { status: 'unavailable', fields: {}, reason: 'Research service unavailable; retry.' } }));
+      await new Promise(resolve => setTimeout(resolve, 15));
+    });
+    assert.equal(fourthAction().disabled, false, 'a full shortlist does not disable Retry');
+    assert.equal(fourthAction().textContent, 'Retry research');
+    await act(async () => fourthAction().click());
+    assert.equal(researchPending.length, 6, 'Retry really sends a new search request');
+    const abandonedFourth = researchPending.at(-1);
+    assert.equal(fourthAction().disabled, false, 'pending research can be restarted if it gets stuck');
+    assert.equal(fourthAction().textContent, 'Restart research');
+    await act(async () => fourthAction().click());
+    assert.equal(abandonedFourth.signal.aborted, true);
+    assert.equal(researchPending.length, 7);
+    assert.equal(researchPending[3].signal.aborted, false, 'restarting fourth-car research leaves the third car running');
+    await act(async () => {
+      researchPending.at(-1).resolve(Response.json({ modelSpecs: { status: 'matched', fields: { horsepower: researchField(158) } } }));
+      abandonedFourth.resolve(Response.json({ modelSpecs: { status: 'unavailable', fields: {}, reason: 'Stale fourth-car response' } }));
+      researchPending[3].resolve(Response.json({ modelSpecs: { status: 'unavailable', fields: {}, reason: 'Third-car research unavailable' } }));
+      await new Promise(resolve => setTimeout(resolve, 15));
+    });
+    assert.match(fourthCard().textContent, /Research ready: 1 specifications/);
+    assert.doesNotMatch(fourthCard().textContent, /Stale fourth-car response|Third-car research unavailable/);
+    assert.equal(fourthAction().textContent, 'Refresh research');
     // Clearing during another pending lookup aborts it; its late result cannot restore a car.
     await go('compare');
     await act(async () => document.querySelector('.section-heading button').click());

@@ -25,6 +25,8 @@ When all contenders have comparable measurements and sourced category assessment
 
 After changing `.env`, restart the backend: it reads the file at startup. Use **Retry research** after a failure to update the current shortlist without reimporting. Successful research shows specification/note counts, **View results** and **Refresh research**. View results opens that car's evidence and research disclosures. A verified value for an unconfirmed reference version is labelled **Reference version · unconfirmed**, shows its configuration and receives no numeric points. A failed refresh preserves previous usable research. Removing/replacing a car, clearing the shortlist or starting another lookup cancels stale work. No imported listing or research results are persisted.
 
+Research runs independently for all four contenders, even when the shortlist is full. While a model lookup is pending, **Restart research** cancels that car's old search and starts another without interrupting other cars. VIN checking finishes before that control becomes available. A VIN/seller seating-count difference remains a visible warning but does not block consistent model research, overwrite the seller's seat count or remove recommendation safeguards. Other VIN/configuration conflicts block research with the specific fields named in the message.
+
 ## Decision engine
 
 See [DECIDE_REDESIGN.md](DECIDE_REDESIGN.md) for the simplified decision screen and labeled missing-data starting points. See [ENRICHMENT.md](ENRICHMENT.md) for the current source layers, five scoped research profiles, honest missing-spec fallbacks, remaining integrations and the repeatable **Try fictional demo** path. The demo requires no eBay credentials. Model review opinions use a curated reference library with identifiable claim-level sources; optional AI web lookup supplies typical-model specifications, and a free on-demand NHTSA model recall lookup is available.
@@ -107,10 +109,13 @@ Hosted check on 2026-10-28 at `https://cardilemma015.vercel.app`: GET `/` return
 
 ### Repository and branch
 
-The destination is https://github.com/Sinammon/Dilemma.git. The existing origin points to AI-Shopping-Assistant, so do not blindly run git push origin. The deployment adapter is already merged into Dilemma main. After committing further fixes, inspect remote branches first and never force-push. Push the intended main explicitly:
+The GitHub repository is https://github.com/Sinammon/Dilemma.git; `origin` should point there. Keep each change on a descriptive branch, commit with a clear description, then push that branch with upstream tracking. Inspect `git remote -v`, `git status` and the staged diff before pushing. Keep `.env` and credentials ignored. Never force-push or merge into `main` unless requested. For example:
 
 ```powershell
-git push https://github.com/Sinammon/Dilemma.git main:main
+git switch -c fix/describe-the-bug
+# Make and verify the changes, then stage the intended files.
+git commit -m "fix: describe the resulting behavior"
+git push -u origin HEAD
 ```
 
 Vercel may automatically start a Production deployment if main is the tracked production branch. A successful push is not proof of a successful deployment.

@@ -11,6 +11,7 @@ import vercelHandler from './api/model-specs.js';
 import { readFile } from 'node:fs/promises';
 import { gradeResearch } from './model-specs-evaluation.mjs';
 import { entrySummary, decisionSummary } from './src/decision-summary.js';
+import { liveResearchForCar } from './src/model-research.js';
 
 const input = { year: 2018, make: 'Honda', model: 'Civic', fields: ['horsepower', 'torque', 'seats', 'feature:Heated seats', 'feature:Sunroof'] };
 const scope = { year: 2018, make: 'Honda', model: 'Civic' };
@@ -238,6 +239,12 @@ test('research never overwrites seller claims, conflicts, VIN values or failed V
   assert.equal(extractVehicleSpecs(car).specs.horsepower.value, 240);
   car.enrichment.vin = { status: 'decoded', mismatches: [{ field: 'Year' }] };
   assert.equal(extractVehicleSpecs(car).specs.horsepower.value, null);
+  car.itemSpecifics = [{ name: 'Seating capacity', value: '4' }];
+  car.enrichment.vin = { status: 'decoded', fields: { seats: 5, horsepower: 240 }, mismatches: [{ field: 'Seating capacity', listing: 4, vin: 5 }] };
+  assert.equal(extractVehicleSpecs(car).specs.horsepower.value, 158, 'consistent sourced model specs remain accessible despite a seating warning');
+  assert.equal(extractVehicleSpecs(car).specs.horsepower.status, 'model-reference');
+  assert.equal(extractVehicleSpecs(car).specs.seats.value, 4, 'neither VIN nor research overwrites disputed seating');
+  assert.equal(rankDecisionMode([car], 'performance').best.length, 0, 'unresolved VIN warnings still prevent endorsement');
 });
 
 test('missing key, quota, access and malformed responses degrade without retries or paid fallback', async () => {
@@ -302,6 +309,36 @@ test('frontend handles missing configuration and demos without requests, preserv
   const data = await loadModelSpecs(car, { fetcher: async () => Response.json({ modelSpecs: { status: 'matched', fields: parsed([power]) } }) });
   assert.equal(data.fields.horsepower.value, 158);
   assert.equal((await loadModelSpecs(car, { fetcher: async () => new Response('No', { status: 503 }) })).status, 'unavailable');
+});
+
+test('Maybach seating mismatch permits model research while preserving VIN and scoring safeguards', async () => {
+  const car = { year: '2025', make: 'Mercedes-Benz', model: 'S-Class', itemSpecifics: [
+    { name: 'Trim', value: 'Maybach S 680 4MATIC Sedan' }, { name: 'Seating capacity', value: '4' },
+  ], enrichment: { vin: { status: 'decoded', fields: { year: '2025', make: 'Mercedes-Benz', model: 'S-Class', seats: 5 }, mismatches: [{ field: 'Seating capacity', listing: 4, vin: 5 }] } } };
+  let calls = 0;
+  const research = await loadModelSpecs(car, { fetcher: async (url, options) => {
+    calls++;
+    const request = JSON.parse(options.body);
+    assert.equal(url, '/api/model-specs');
+    assert.equal(request.year, 2025);
+    assert.equal(request.trim, 'Maybach S 680 4MATIC Sedan');
+    assert.ok(!request.fields.includes('seats'), 'research cannot replace the disputed seating count');
+    const scope = { year: 2025, make: 'Mercedes-Benz', model: 'S-Class' };
+    return Response.json({ modelSpecs: { status: 'partial', fields: {}, insights: [{ id: 'ride', text: 'The professional review describes a quiet cabin.', tone: 'advantage', categories: ['comfort'], scope, sharedAcross: DISCRIMINATORS, evidence: [{ type: 'model-reference', source: 'Car and Driver', url: 'https://www.caranddriver.com/mercedes-maybach/s-class-2025', quote: 'quiet cabin', configuration: scope }] }] } });
+  } });
+  assert.equal(calls, 1);
+  car.enrichment.modelSpecs = research;
+  assert.equal(liveResearchForCar(car).insights.length, 1, 'retrieved model notes remain accessible');
+  assert.equal(extractVehicleSpecs(car).specs.seats.value, 4);
+  assert.equal(car.enrichment.vin.mismatches.length, 1);
+  assert.equal(rankDecisionMode([car], 'comfort').best.length, 0);
+  for (const field of ['Year', 'Make', 'Model', 'Engine displacement (L)', 'Body type', 'Unknown field']) {
+    const blocked = { ...car, enrichment: { vin: { ...car.enrichment.vin, mismatches: [{ field, listing: 'A', vin: 'B' }] } } };
+    const result = await loadModelSpecs(blocked, { fetcher: () => assert.fail('Configuration mismatch must block research') });
+    assert.equal(result.status, 'insufficient');
+    assert.match(result.reason, /VIN\/listing differences/);
+    assert.match(result.reason, new RegExp(field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
 });
 
 test('enrichment publishes VIN and fuel before model research completes; cancellation is preserved', async () => {

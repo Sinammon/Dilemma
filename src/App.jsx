@@ -66,13 +66,16 @@ export default function App() {
     const previous = car.enrichment || {};
     const apply = enrichment => { if (!controller.signal.aborted) setCars(current => current.map(item => item === car || item.enrichmentToken === controller ? { ...item, enrichmentToken: controller, enrichment } : item)); };
     apply({ ...previous, status: 'loading-model' });
-    void loadModelSpecs(car, { signal: controller.signal }).then(modelSpecs => {
+    const finish = modelSpecs => {
       const usable = Object.keys(modelSpecs.fields || {}).length || modelSpecs.insights?.length;
       const hasPrevious = ['matched', 'partial'].includes(previous.modelSpecs?.status);
       const research = usable ? { ...modelSpecs, fields: { ...previous.modelSpecs?.fields, ...modelSpecs.fields }, insights: modelSpecs.insights?.length ? modelSpecs.insights : previous.modelSpecs?.insights || [], assessments: modelSpecs.insights?.length ? modelSpecs.assessments : previous.modelSpecs?.assessments || {} }
         : hasPrevious ? { ...previous.modelSpecs, lastAttempt: { status: modelSpecs.status, reason: modelSpecs.reason } } : modelSpecs;
       apply({ ...previous, status: 'complete', modelSpecs: research });
-    }).catch(() => {}).finally(() => enrichmentTasks.current.delete(controller));
+    };
+    void loadModelSpecs(car, { signal: controller.signal }).then(finish).catch(() => {
+      if (!controller.signal.aborted) finish({ status: 'unavailable', fields: {}, reason: 'AI research could not finish. Retry research to search again.' });
+    }).finally(() => enrichmentTasks.current.delete(controller));
   }
   function loadDemo() {
     if (cars.length || loading) return;
