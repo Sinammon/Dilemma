@@ -2,7 +2,7 @@ import { extractVehicleSpecs, specEvidenceLabel, researchVinMismatches } from '.
 import { resolveMileage, numeric } from './vehicle-data.js';
 import { dimensionRatingsForCar, researchGuidance } from './model-research.js';
 import { annualFuelCost } from './fuel-data.js';
-import { CONFIG_FIELDS, sameConfigurationValue } from '../shared/model-specs.js';
+import { CONFIG_FIELDS, sameConfigurationValue, approximateScopeMatches } from '../shared/model-specs.js';
 
 export const COMFORT_WEIGHTS = { rideQuality: 35, cabinQuietness: 30, seatComfort: 25, passengerSpace: 10 };
 export const DIMENSION_LABELS = { rideQuality: 'Ride quality', cabinQuietness: 'Cabin quietness', seatComfort: 'Seat comfort · front and rear', passengerSpace: 'Passenger space · front and rear', frontSeatComfort: 'Front-seat comfort', rearSeatComfort: 'Rear-seat comfort', frontPassengerSpace: 'Front passenger space', rearPassengerSpace: 'Rear passenger space', cargoSpace: 'Usable cargo space' };
@@ -40,8 +40,9 @@ function scoreGroup(records, definitions, eligible) {
 
 export function supportedPowerToWeight(specs) {
   if (!known(specs.horsepower.value) || !known(specs.curbWeightKg.value) || specs.curbWeightKg.value <= 0) return null;
-  const scopes = [specs.horsepower, specs.curbWeightKg].flatMap(s => (s.evidence || []).map(e => e.configuration).filter(Boolean));
-  if (scopes.some(a => scopes.some(b => CONFIG_FIELDS.some(key => a[key] != null && b[key] != null && !sameConfigurationValue(a[key], b[key]))))) return null;
+  const scopes = [specs.horsepower, specs.curbWeightKg].flatMap(s => [s.scope, ...(s.evidence || []).map(e => e.configuration)].filter(Boolean));
+  const approximate = [specs.horsepower, specs.curbWeightKg].some(s => ['typical', 'estimated'].includes(s.quality));
+  if (scopes.some(a => scopes.some(b => CONFIG_FIELDS.some(key => a[key] != null && b[key] != null && !sameConfigurationValue(a[key], b[key])) && !(approximate && approximateScopeMatches(a, b, { adjacentYear: true }))))) return null;
   return specs.horsepower.value / (specs.curbWeightKg.value / 1000);
 }
 
@@ -57,7 +58,7 @@ export function rankCapabilities(cars, mode, year, scenario, detectWarnings) {
       age: specs.year.value == null ? null : Math.max(0, year - specs.year.value),
       mileage: mileage.amount == null || !mileage.unit ? null : mileage.amount * (mileage.unit === 'mi' ? 1.609344 : 1),
       power: specs.horsepower.value, torque: specs.torque.value, powerToWeight: supportedPowerToWeight(specs),
-      seats: specs.seats.value == null || !Number.isFinite(scenario.minSeats) || scenario.minSeats < 1 || car.enrichment?.vin?.mismatches?.some(m => m.field === 'Seating capacity') ? null : Number(specs.seats.value >= scenario.minSeats),
+      seats: specs.seats.value == null || !Number.isFinite(scenario.minSeats) || scenario.minSeats < 1 ? null : Number(specs.seats.value >= scenario.minSeats),
       body: !scenario.bodyType || specs.bodyType.value == null ? null : Number(specs.bodyType.value === scenario.bodyType),
       fuel: annualFuelCost(car.enrichment?.fuel, scenario),
       ...Object.fromEntries(Object.entries(ratings).map(([key, rating]) => [key, rating.rating])),
@@ -72,7 +73,7 @@ export function rankCapabilities(cars, mode, year, scenario, detectWarnings) {
         : key === 'passengerSpace' ? [...(ratings.frontPassengerSpace?.evidence || []), ...(ratings.rearPassengerSpace?.evidence || [])] : ratings[key]?.evidence || [];
     }
     const warnings = detectWarnings(car);
-    const reviewRequired = identityMismatch || warnings.some(w => w.label !== 'VIN/listing mismatch' || !w.evidence.startsWith('Seating capacity:'));
+    const reviewRequired = identityMismatch || warnings.some(w => w.label !== 'VIN/listing mismatch');
     return { car, specs, ratings, identityMismatch, reviewRequired, warnings, values, labels, evidence, coverage: {} };
   });
   const valid = r => !r.identityMismatch;
@@ -123,8 +124,12 @@ export function rankCapabilities(cars, mode, year, scenario, detectWarnings) {
   ranked.forEach((entry, index) => { entry.rank = entry.score == null ? null : index && ranked[index - 1].score === entry.score ? ranked[index - 1].rank : index + 1; });
   const best = ranked.filter(entry => entry.score != null && entry.rank === 1);
   const research = cars.map(car => { const guidance = researchGuidance(car, mode.id), caution = detectWarnings(car).length > 0; return { car, guidance, caution, worthTestDriving: !caution && ['comfort', 'practical', 'performance'].includes(mode.id) && guidance.claims.some(c => c.tone === 'positive' && !c.contextOnly) }; });
+  const approximate = spec => spec?.stale || ['typical', 'estimated'].includes(spec?.quality);
+  const approximatePerformance = r => performance.criteria.some(c => c.active && (c.key === 'powerToWeight' ? approximate(r.specs.horsepower) || approximate(r.specs.curbWeightKg) : approximate(r.specs[({ power: 'horsepower', torque: 'torque', acceleration: accelerationMetric })[c.key]])));
+  const approximatePractical = r => practical.criteria.some(c => c.active && approximate(r.specs[({ seats: 'seats', body: 'bodyType' })[c.key]]));
+  const usesApproximation = records.some(r => mode.id === 'performance' ? approximatePerformance(r) : mode.id === 'practical' ? approximatePractical(r) : ['value', 'balanced'].includes(mode.id) && capability.criteria.some(c => c.active && (c.key === 'performance' ? approximatePerformance(r) : c.key === 'practical' && approximatePractical(r))));
   return { ranked, criteria: result.criteria, totalWeight: result.totalWeight, best, mode, scenario, research, commonFeatures: [], researchWeight: 0,
-    evidenceCoverage: result.coverage, provisional: result.coverage < 0.8 || ranked.some(e => e.score == null) || cars.length < 2,
+    evidenceCoverage: result.coverage, usesApproximation, provisional: usesApproximation || result.coverage < 0.8 || ranked.some(e => e.score == null) || cars.length < 2,
     accelerationMetric: accelerationMetric || null, performanceStrategy: accelerationMetric ? 'acceleration' : ratioComparable ? 'power-to-weight' : 'power-and-torque',
     componentScores: { comfort, performance, practical, capability, affordability },
     basis: result.totalWeight ? 'supported-specs' : research.some(e => e.guidance.claims.length) ? 'model-research-only' : 'insufficient',

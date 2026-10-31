@@ -1,5 +1,6 @@
 // The browser and backend share the research contract; no credentials or network here.
 export const MODEL_SPEC_FIELDS = ['displacement', 'engineType', 'induction', 'cylinders', 'horsepower', 'torque', 'curbWeightKg', 'zeroTo100KphSeconds', 'zeroTo60MphSeconds', 'transmission', 'transmissionSpeeds', 'drivetrain', 'fuelType', 'bodyType', 'seats'];
+export const CORE_SPEC_FIELDS = ['horsepower', 'torque', 'curbWeightKg', 'displacement', 'cylinders', 'engineType', 'transmission', 'transmissionSpeeds'];
 export const RATING_DIMENSIONS = ['rideQuality', 'cabinQuietness', 'frontSeatComfort', 'rearSeatComfort', 'frontPassengerSpace', 'rearPassengerSpace', 'cargoSpace'];
 export const RATING_ANCHORS = ['Severe deficiency', 'Poor', 'Basic', 'Good mainstream', 'Premium', 'Exceptional'];
 export const ACCELERATION_FIELDS = ['zeroTo100KphSeconds', 'zeroTo60MphSeconds'];
@@ -9,7 +10,7 @@ export const CONFIG_FIELDS = ['year', 'make', 'model', 'trim', 'market', 'displa
 export const DISCRIMINATORS = CONFIG_FIELDS.filter(key => !['year', 'make', 'model'].includes(key));
 export const RESEARCH_MODES = ['value', 'cost', 'comfort', 'balanced', 'practical', 'performance'];
 export const RESEARCH_CATEGORIES = [...RESEARCH_MODES, 'safety', 'issues', 'strengths'];
-export const RESEARCH_STATUSES = ['matched', 'partial', 'complete', 'unavailable', 'not-configured', 'model-unavailable', 'quota', 'timeout', 'no-sources', 'insufficient'];
+export const RESEARCH_STATUSES = ['matched', 'partial', 'complete', 'unavailable', 'not-configured', 'model-unavailable', 'invalid-request', 'quota', 'timeout', 'no-sources', 'insufficient'];
 const relevantFields = {
   horsepower: ['trim', 'market', 'displacement', 'cylinders', 'bodyType', 'fuelType', 'transmission'],
   torque: ['trim', 'market', 'displacement', 'cylinders', 'bodyType', 'fuelType', 'transmission'],
@@ -24,6 +25,13 @@ const relevantFields = {
 export const relevantDiscriminators = field => relevantFields[field] || ['trim', 'market', 'bodyType'];
 export const modelKey = value => String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 export const sameConfigurationValue = (a, b) => typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) < 0.06 : modelKey(a) === modelKey(b);
+export const cosmeticTrim = value => /^(?:m\s*(?:sport|package|pkg)|sport package)$/i.test(String(value || '').trim());
+
+export function approximateScopeMatches(scope, input, { adjacentYear = false } = {}) {
+  if (!scope || !['make', 'model'].every(key => sameConfigurationValue(scope[key], input[key]))) return false;
+  if (!sameConfigurationValue(scope.year, input.year) && !(adjacentYear && Math.abs(Number(scope.year) - input.year) <= 1 && input.displacement != null && sameConfigurationValue(scope.displacement, input.displacement) && input.bodyType && sameConfigurationValue(scope.bodyType, input.bodyType))) return false;
+  return DISCRIMINATORS.every(key => key === 'trim' && modelKey(input.make) === 'bmw' && cosmeticTrim(input.trim) || input[key] == null || scope[key] == null || sameConfigurationValue(scope[key], input[key]));
+}
 
 const enums = {
   engineType: ['V', 'Inline', 'Boxer / flat', 'rotary', 'electric motor'],
@@ -85,6 +93,15 @@ export function modelScopeLabel(scope) {
 }
 
 export function usableModelFinding(field, finding, input) {
+  if (finding?.quality === 'estimated') return !(field === 'transmissionSpeeds' && input.transmission === 'CVT') && CORE_SPEC_FIELDS.includes(field) && finding.kind === 'value'
+    && finding.origin === 'model-estimate' && Array.isArray(finding.assumptions) && finding.assumptions.length > 0
+    && modelFieldValue(field, finding.value) != null && approximateScopeMatches(finding.scope, input)
+    && Array.isArray(finding.evidence) && finding.evidence.length === 0;
+  if (finding?.quality === 'typical' && finding.kind === 'value') return modelFieldValue(field, finding.value) != null
+    && approximateScopeMatches(finding.scope, input, { adjacentYear: true }) && Array.isArray(finding.assumptions) && finding.assumptions.length > 0
+    && Array.isArray(finding.evidence) && finding.evidence.length > 0
+    && finding.evidence.every(e => e?.quote && e.source && /^https:\/\//.test(e.url))
+    && (!ACCELERATION_FIELDS.includes(field) || ['manufacturer', 'instrumented-test'].includes(finding.measurementMethod));
   if (!finding || !(finding.kind === 'value' ? scopeMatches(finding.scope, input) : compatibleModelScope(finding.scope, input)) || !Array.isArray(finding.evidence) || !finding.evidence.length) return false;
   if (!finding.evidence.every(e => typeof e.quote === 'string' && e.quote && typeof e.source === 'string' && /^https:\/\//.test(e.url))) return false;
   if (finding.kind === 'value') {
@@ -146,4 +163,20 @@ export function validatedResearch(data, input) {
   }
   const dimensionRatings = Object.fromEntries(RATING_DIMENSIONS.filter(key => validDimensionRating(data?.dimensionRatings?.[key], resolvedInput)).map(key => [key, data.dimensionRatings[key]]));
   return { ...data, fields, insights, assessments, dimensionRatings };
+}
+
+export const findingStrength = finding => (({ exact: 4, typical: 2, estimated: 1 })[finding?.quality] ?? (finding?.kind === 'value' ? 3 : 0)) + (finding?.origin === 'reviewed-reference' ? 0.5 : 0);
+export function mergeResearch(previous = {}, incoming = {}) {
+  const fields = { ...previous.fields };
+  for (const [key, finding] of Object.entries(incoming.fields || {})) {
+    if (!fields[key] || findingStrength(finding) >= findingStrength(fields[key]) && !(finding.stale && !fields[key].stale)) fields[key] = finding;
+  }
+  const useful = Object.keys(fields).length || incoming.insights?.length || previous.insights?.length || Object.keys(incoming.dimensionRatings || {}).length || Object.keys(previous.dimensionRatings || {}).length;
+  const failed = !!incoming.status && !['matched', 'partial', 'complete', 'loading'].includes(incoming.status);
+  return { ...previous, ...incoming, fields, dimensionRatings: { ...previous.dimensionRatings, ...incoming.dimensionRatings },
+    insights: incoming.insights?.length ? incoming.insights : previous.insights || [],
+    assessments: incoming.insights?.length ? incoming.assessments || {} : previous.assessments || {},
+    status: useful ? 'partial' : incoming.status || previous.status || 'unavailable',
+    lastAttempt: failed && useful ? { status: incoming.status, reason: incoming.reason, dailyQuota: incoming.dailyQuota, retryAfterSeconds: incoming.retryAfterSeconds } : incoming.lastAttempt,
+  };
 }

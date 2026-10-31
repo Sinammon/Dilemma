@@ -59,7 +59,7 @@ export function keyFacts(car, mode = 'value') {
   const facts = [];
   const engine = [specs.displacement.value != null && `${specs.displacement.value.toFixed(1)} L`, specs.cylinders.value != null && `${specs.cylinders.value}-cylinder`].filter(Boolean).join(' · ');
   const engineFields = [specs.displacement, specs.cylinders].filter(s => s.value != null);
-  if (engine) facts.push({ icon: 'engine', label: 'Engine', value: engine, source: engineFields.some(s => s.status === 'model-reference') ? 'Includes typical model specs · cited sources' : engineFields.every(s => s.status === 'vin-record') ? 'Original VIN record' : engineFields.every(s => s.status === 'seller-reported') ? 'Seller-reported' : 'Seller / original VIN evidence' });
+  if (engine) facts.push({ icon: 'engine', label: 'Engine', value: engine, source: engineFields.some(s => s.quality === 'estimated') ? 'Includes estimated model specs; unverified' : engineFields.some(s => s.status === 'model-reference') ? 'Includes typical model specs · cited sources' : engineFields.every(s => s.status === 'vin-record') ? 'Original VIN record' : engineFields.every(s => s.status === 'seller-reported') ? 'Seller-reported' : 'Seller / original VIN evidence' });
   const mileage = resolveMileage(car);
   if (mileage.unit && mileage.amount != null) facts.push({ icon: 'mileage', label: 'Mileage', value: `${number(mileage.amount)} ${mileage.unit}`, source: mileage.assumedUnit ? 'Seller reading · kilometres assumed' : 'Seller-reported' });
   const amenities = Object.entries(features).filter(([, f]) => f.value === true).map(([label]) => label);

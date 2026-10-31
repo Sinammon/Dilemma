@@ -72,19 +72,19 @@ test('factory coverage includes exact configurations for Thunderbird and Sprinte
   }
 });
 
-test('factory conflicts preserve all evidence and prevent unsupported power from entering scoring', () => {
+test('listing power remains preferred to original factory alternatives', () => {
   const [car] = makeDemoCars();
   const conflicting = attach({ ...car, description: '300 hp. 400 Nm.' });
   const { specs } = extractVehicleSpecs(conflicting);
-  assert.equal(specs.horsepower.status, 'conflict');
-  assert.equal(specs.torque.status, 'conflict');
-  assert.equal(specs.horsepower.evidence.length, 2);
-  assert.equal(rankDecisionMode([attach(car), conflicting], 'performance').ranked[1].score, null);
+  assert.equal(specs.horsepower.status, 'seller-reported');
+  assert.equal(specs.torque.status, 'seller-reported');
+  assert.equal(specs.horsepower.value, 300);
+  assert.equal(rankDecisionMode([attach(car), conflicting], 'performance').best[0].car, conflicting);
   const agreeing = extractVehicleSpecs(attach({ ...car, description: '158 hp' })).specs;
-  assert.equal(agreeing.horsepower.status, 'corroborated');
-  assert.equal(extractVehicleSpecs(attach({ ...car, description: '187 Nm' })).specs.torque.status, 'corroborated', 'whole-unit rounding should not invent a conflict');
+  assert.equal(agreeing.horsepower.status, 'seller-reported');
+  assert.equal(extractVehicleSpecs(attach({ ...car, description: '187 Nm' })).specs.torque.status, 'seller-reported', 'whole-unit rounding should not invent a conflict');
   const badVin = { ...car, enrichment: { vin: { status: 'decoded', mismatches: [{ field: 'Year' }] } } };
-  assert.equal(matchFactorySpecs(badVin).status, 'conflict');
+  assert.equal(matchFactorySpecs(badVin).status, 'matched');
   assert.equal(extractVehicleSpecs({ ...conflicting, enrichment: { ...badVin.enrichment, factorySpecs: matchFactorySpecs(car) } }).specs.horsepower.value, 300);
 });
 

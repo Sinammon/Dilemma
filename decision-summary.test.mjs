@@ -29,8 +29,8 @@ test('condition and identity concerns never disappear through the fallback', () 
   assert.equal(summary.ranking.best.length, 0);
   assert.match(entrySummary(summary, summary.ranking.ranked[0]).explanation, /No price-based substitute/);
   const mismatch = decisionSummary(cars.map(car => ({ ...car, enrichment: { vin: { mismatches: [{ field: 'Year' }] } } })), 'cost', 2026);
-  assert.equal(mismatch.ranking.best.length, 0);
-  assert.equal(mismatch.kind, 'guidance');
+  assert.ok(mismatch.ranking.best.length);
+  assert.equal(mismatch.kind, 'supported');
 });
 
 test('completely missing evidence stays unranked and equal matches stay equal', () => {

@@ -66,17 +66,18 @@ test('citation validation rejects fabricated URLs, wrong quotes and unsupported 
   assert.equal(sourceIdentity('https://toyota.ca/specs', 'Honda'), null);
 });
 
-test('verified reference configurations survive incomplete listings without entering numeric scoring', () => {
+test('compatible typical references fill incomplete listings with explicit assumptions and provisional scores', () => {
   for (const finding of [{ ...power, scope: { ...scope, trim: 'LX', market: 'US' } }, { ...power, sharedAcross: [] }]) {
     const fields = parsed([finding]);
-    assert.equal(fields.horsepower.kind, 'configuration');
+    assert.equal(fields.horsepower.kind, 'value');
+    assert.equal(fields.horsepower.quality, 'typical');
     const car = modelCar('reference', fields);
     const spec = extractVehicleSpecs(car).specs.horsepower;
-    assert.equal(spec.referenceValue, 158);
-    assert.equal(spec.value, null);
-    assert.equal(spec.status, 'model-context');
-    assert.equal(rankDecisionMode([car, modelCar('other', fields)], 'performance').totalWeight, 0);
-    assert.deepEqual(parseModelFindings({ findings: [finding] }, [source], { ...input, trim: 'EX' }), {});
+    assert.equal(spec.value, 158);
+    assert.equal(spec.status, 'model-reference');
+    assert.ok(spec.assumptions.length);
+    assert.equal(rankDecisionMode([car, modelCar('other', fields)], 'performance').provisional, true);
+    if (finding.scope.trim) assert.deepEqual(parseModelFindings({ findings: [finding] }, [source], { ...input, trim: 'EX' }), {});
   }
   const scoped = rawInsight('scoped-review', 'comfort', 'advantage', { ...scope, market: 'US', bodyType: 'Sedan' });
   const research = parseModelResearch({ findings: [], insights: [scoped] }, [source], input);
@@ -90,7 +91,7 @@ test('real-world reference table cells with repeated headings preserve independe
   const sources = [{ ...source, id: 'a', group: 'edmunds', manufacturer: false }, { ...source, id: 'b', group: 'cox', manufacturer: false }];
   const finding = rawFinding('seats', 5, '', { evidence: [{ sourceId: 'a', label: 'Total Seating', quote: 'Total Seating 5' }, { sourceId: 'b', label: 'Max Seating', quote: 'Max Seating 5' }] });
   assert.equal(parseModelFindings({ findings: [finding] }, sources, { ...input, fields: ['seats'] }).seats.value, 5);
-  assert.deepEqual(parseModelFindings({ findings: [finding] }, [sources[0]], { ...input, fields: ['seats'] }), {});
+  assert.equal(parseModelFindings({ findings: [finding] }, [sources[0]], { ...input, fields: ['seats'] }).seats.quality, 'typical');
 });
 
 test('live-style insight IDs and retrieved URLs survive provider formatting differences', () => {
@@ -167,19 +168,16 @@ test('failed sources, irrelevant scopes, unsupported money and invalid assessmen
   assert.equal(optional.assessments.comfort, undefined);
 });
 
-test('two independent references must actually agree on the cited value', () => {
+test('a credible single source may support a typical value, while unsupported quoted values are rejected', () => {
   const a = { ...source, id: 'a', url: 'https://www.caranddriver.com/honda/civic', group: 'hearst', publisher: 'caranddriver.com', manufacturer: false };
-  const b = { ...source, id: 'b', url: 'https://www.edmunds.com/honda/civic', group: 'edmunds', publisher: 'edmunds.com', manufacturer: false };
-  const finding = { ...power, evidence: [{ sourceId: 'a', quote: '158 hp.' }, { sourceId: 'b', quote: '158 hp.' }] };
-  assert.ok(parseModelFindings({ findings: [finding] }, [a, b], input).horsepower);
-  assert.deepEqual(parseModelFindings({ findings: [finding] }, [a, { ...b, group: 'hearst' }], input), {});
-  assert.deepEqual(parseModelFindings({ findings: [{ ...finding, evidence: [{ sourceId: 'a', quote: '158 hp.' }] }] }, [a, b], input), {});
-  assert.deepEqual(parseModelFindings({ findings: [{ ...finding, evidence: [{ sourceId: 'a', quote: '158 hp.' }, { sourceId: 'b', quote: '138 lb-ft.' }] }] }, [a, b], input), {});
+  const finding = { ...power, evidence: [{ sourceId: 'a', quote: '158 hp.' }] };
+  assert.equal(parseModelFindings({ findings: [finding] }, [a], input).horsepower.quality, 'typical');
+  assert.deepEqual(parseModelFindings({ findings: [{ ...finding, evidence: [{ sourceId: 'a', quote: '138 lb-ft.' }] }] }, [a], input), {});
 });
 
 test('known configuration must match; unknown variants need shared applicability', () => {
   const specific = { ...input, trim: 'LX', market: 'CA', displacement: 2, transmission: 'Manual' };
-  assert.deepEqual(parseModelFindings({ findings: [power] }, [source], specific), {});
+  assert.equal(parseModelFindings({ findings: [power] }, [source], specific).horsepower.quality, 'typical');
   const exact = { ...power, scope: { ...scope, trim: 'LX', market: 'CA', displacement: 2, transmission: 'Manual' } };
   assert.ok(parseModelFindings({ findings: [exact] }, [source], specific).horsepower);
   assert.deepEqual(parseModelFindings({ findings: [{ ...exact, scope: { ...exact.scope, market: 'US' } }] }, [source], specific), {});
@@ -209,7 +207,7 @@ test('ranges and optional features are context, standard equipment and single va
   const cars = [modelCar('A', fields), modelCar('B', { ...fields, horsepower: { ...fields.horsepower, value: 132 }, torque: { ...fields.torque, value: 170 }, 'feature:Heated seats': { ...fields['feature:Heated seats'], value: false, availability: 'not-available' } })];
   const performance = rankDecisionMode(cars, 'performance');
   assert.equal(performance.best[0].car.legacyItemId, 'A');
-  assert.match(performance.best[0].breakdown[0].evidenceLabel, /Typical model spec/);
+  assert.match(performance.best[0].breakdown[0].evidenceLabel, /Factory reference/);
   assert.equal(rankDecisionMode(cars, 'comfort').best.length, 0, 'standard amenities alone do not establish ride comfort');
   assert.equal(rankDecisionMode([cars[0], modelCar('B', ranges)], 'performance').ranked[1].score, null);
 });
@@ -220,9 +218,9 @@ test('research never overwrites seller claims, conflicts, VIN values or failed V
   assert.equal(extractVehicleSpecs(modelCar('A', fields, { description: '200 hp. 300 hp' })).specs.horsepower.status, 'conflict');
   const car = modelCar('A', fields);
   car.enrichment.vin = { status: 'decoded', fields: { horsepower: 240 } };
-  assert.equal(extractVehicleSpecs(car).specs.horsepower.value, 240);
+  assert.equal(extractVehicleSpecs(car).specs.horsepower.value, 158, 'incomplete VIN identity cannot donate power');
   car.enrichment.vin = { status: 'decoded', mismatches: [{ field: 'Year' }] };
-  assert.equal(extractVehicleSpecs(car).specs.horsepower.value, null);
+  assert.equal(extractVehicleSpecs(car).specs.horsepower.value, 158, 'VIN warning does not block listing-based model reference');
   car.itemSpecifics = [{ name: 'Seating capacity', value: '4' }];
   car.enrichment.vin = { status: 'decoded', fields: { seats: 5, horsepower: 240 }, mismatches: [{ field: 'Seating capacity', listing: 4, vin: 5 }] };
   assert.equal(extractVehicleSpecs(car).specs.horsepower.value, 158, 'consistent sourced model specs remain accessible despite a seating warning');
@@ -319,11 +317,9 @@ test('Maybach seating mismatch permits model research while preserving VIN and s
   assert.equal(comfort.best[0].warnings.length, 1, 'reviewed comfort can rank while the seating warning remains visible');
   assert.equal(comfort.provisional, true);
   for (const field of ['Year', 'Make', 'Model', 'Engine displacement (L)', 'Body type', 'Unknown field']) {
-    const blocked = { ...car, enrichment: { vin: { ...car.enrichment.vin, mismatches: [{ field, listing: 'A', vin: 'B' }] } } };
-    const result = await loadModelSpecs(blocked, { fetcher: () => assert.fail('Configuration mismatch must block research') });
-    assert.equal(result.status, 'insufficient');
-    assert.match(result.reason, /VIN\/listing differences/);
-    assert.match(result.reason, new RegExp(field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    const preferred = { ...car, enrichment: { vin: { ...car.enrichment.vin, mismatches: [{ field, listing: 'A', vin: 'B' }] } } };
+    const result = await loadModelSpecs(preferred, { fetcher: async () => Response.json({ modelSpecs: { status: 'unavailable', fields: {} } }) });
+    assert.equal(result.status, 'unavailable', 'VIN differences do not prevent attempting research');
   }
 });
 

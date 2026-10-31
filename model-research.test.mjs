@@ -47,7 +47,6 @@ test('profiles require exact identity and appropriate body/variant scope', () =>
   for (const car of [
     { ...civic, year: '2019' }, { ...civic, make: 'Toyota' }, { ...civic, model: 'Civic Type R' },
     { ...civic, year: ['2018', '2019'] }, { ...civic, title: '2018 Honda Civic Si' },
-    { ...civic, enrichment: { vin: { mismatches: [{ field: 'Year' }] } } },
     noSpecs(corolla), { ...corolla, itemSpecifics: [{ name: 'Body type', value: 'Hatchback' }] },
     { ...corolla, itemSpecifics: [{ name: 'Body type', value: ['Sedan', 'Hatchback'] }] },
   ]) assert.equal(researchForCar(car).status, 'unavailable', JSON.stringify(car));

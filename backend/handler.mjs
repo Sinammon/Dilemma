@@ -61,7 +61,8 @@ export function createHandler({ auth = authenticate, importer = importListing, v
       if (url.pathname === '/api/model-specs') {
         const configuration = modelSpecsInput(input);
         if (!configuration) return json(400, { error: 'Provide a valid year, make, model and requested specification fields.' });
-        return json(200, { modelSpecs: await modelSpecsLookup(configuration, { signal: request.signal }) });
+        if (input.phase != null && !['quick', 'research'].includes(input.phase)) return json(400, { error: 'Choose quick or research phase.' });
+        return json(200, { modelSpecs: await modelSpecsLookup(configuration, { signal: request.signal, phase: input.phase || 'research' }) });
       }
       if (url.pathname === '/api/recalls') {
         const identity = recallIdentity(input);

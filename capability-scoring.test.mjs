@@ -131,7 +131,7 @@ test('numeric research requires manufacturer or independent corroboration, prope
   assert.equal(fields.zeroTo100KphSeconds, undefined);
   assert.deepEqual(parseModelFindings({ findings: [finding('curbWeightKg', 4000, 'Gross vehicle weight (kg)', '4000')] }, [source], input), {});
   assert.deepEqual(parseModelFindings({ findings: [finding('zeroTo60MphSeconds', 4.5, '0-60 mph (seconds)', '4.5', { measurementMethod: 'instrumented-test' })] }, [source], input), {});
-  assert.deepEqual(parseModelFindings({ findings: [finding('curbWeightKg', 1814.36948, 'Curb weight (pounds)', '4000')] }, [{ ...source, manufacturer: false, group: 'hearst' }], input), {});
+  assert.equal(parseModelFindings({ findings: [finding('curbWeightKg', 1814.36948, 'Curb weight (pounds)', '4000')] }, [{ ...source, manufacturer: false, group: 'hearst' }], input).curbWeightKg.quality, 'typical');
 });
 
 test('rating validation rejects marketing, wrong scope, unbounded ratings and class-relative premium claims', () => {
@@ -166,7 +166,7 @@ test('purchase warnings do not reorder capability; genuine identity conflicts re
   assert.equal(summary.kind, 'review');
   assert.match(entrySummary(summary, summary.ranking.best[0]).explanation, /purchase concerns/);
   a.enrichment.vin = { mismatches: [{ field: 'Year', listing: 2018, vin: 2019 }] };
-  assert.equal(rankDecisionMode([a, b], 'comfort').ranked.find(e => e.car === a).score, null);
+  assert.equal(rankDecisionMode([a, b], 'comfort').best[0].car, a, 'listing-based comfort stays available despite VIN mismatch');
   delete a.enrichment.vin;
   a.itemSpecifics.push({ name: 'Transmission', value: ['Automatic', 'Manual'] });
   assert.equal(rankDecisionMode([a, b], 'comfort').ranked.find(e => e.car === a).score, null, 'conflicting seller configuration is also excluded');

@@ -1,6 +1,6 @@
 // Pure functions: no network, storage, mutation, or React dependency.
 import { resolveMileage, numeric as number } from './vehicle-data.js';
-import { extractVehicleSpecs } from './vehicle-specs.js';
+import { extractVehicleSpecs, researchVinMismatches } from './vehicle-specs.js';
 import { sellerText } from './mileage.js';
 import { rankCapabilities } from './capability-scoring.js';
 export const DEFAULT_PRIORITIES = { price: 50, age: 30, mileage: 20 };
@@ -46,7 +46,7 @@ export function rankCars(cars, priorities = DEFAULT_PRIORITIES, currentYear = ne
   const entries = cars.map(car => {
     const year = options.yearForCar ? options.yearForCar(car) : extractVehicleSpecs(car).specs.year.value;
     const mileage = resolveMileage(car);
-    return { car, identityMismatch: !!car.enrichment?.vin?.mismatches?.length, warnings: detectWarnings(car), values: {
+    return { car, identityMismatch: researchVinMismatches(car).length > 0, reviewRequired: detectWarnings(car).some(w => w.label !== 'VIN/listing mismatch'), warnings: detectWarnings(car), values: {
       price: car.priceCAD?.currency === 'CAD' ? number(car.priceCAD.value) : null,
       age: year !== null && Number.isInteger(year) && year >= 1886 && year <= currentYear + 1 ? Math.max(0, currentYear - year) : null,
       mileage: mileage.unit ? mileage.amount * (mileage.unit === 'mi' ? 1.609344 : 1) : null,
@@ -68,12 +68,12 @@ export function rankCars(cars, priorities = DEFAULT_PRIORITIES, currentYear = ne
       return { ...c, value: entry.values[c.key], points, share: c.weight / totalWeight, contribution: points * c.weight / totalWeight };
     });
     return { ...entry, breakdown, score: totalWeight ? Math.round(breakdown.reduce((sum, c) => sum + c.contribution, 0) * 100) / 100 : null };
-  }).sort((a, b) => Number(a.identityMismatch) - Number(b.identityMismatch) || (options.priceOnly ? 0 : Number(a.warnings.length > 0) - Number(b.warnings.length > 0)) || (b.score ?? 0) - (a.score ?? 0));
+  }).sort((a, b) => Number(a.identityMismatch) - Number(b.identityMismatch) || (options.priceOnly ? 0 : Number(a.reviewRequired) - Number(b.reviewRequired)) || (b.score ?? 0) - (a.score ?? 0));
   ranked.forEach((entry, index) => {
     const previous = ranked[index - 1];
-    entry.rank = previous && previous.identityMismatch === entry.identityMismatch && (options.priceOnly || Boolean(previous.warnings.length) === Boolean(entry.warnings.length)) && previous.score === entry.score ? previous.rank : index + 1;
+    entry.rank = previous && previous.identityMismatch === entry.identityMismatch && (options.priceOnly || previous.reviewRequired === entry.reviewRequired) && previous.score === entry.score ? previous.rank : index + 1;
   });
-  const best = totalWeight ? ranked.filter(e => !e.identityMismatch && (options.priceOnly || !e.warnings.length) && e.rank === 1) : [];
+  const best = totalWeight ? ranked.filter(e => !e.identityMismatch && (options.priceOnly || !e.reviewRequired) && e.rank === 1) : [];
   return { ranked, criteria, best, totalWeight };
 }
 

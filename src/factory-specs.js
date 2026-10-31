@@ -33,7 +33,6 @@ export function matchFactorySpecs(car, rows = FACTORY_SPECS) {
   // Do not let a previous factory match supply its own matching inputs.
   const { specs } = extractVehicleSpecs({ ...car, enrichment: { ...car.enrichment, factorySpecs: undefined, modelSpecs: undefined } });
   const fail = (status, reason, missing = []) => ({ status, reason, missing });
-  if (car.enrichment?.vin?.mismatches?.length) return fail('conflict', 'Resolve VIN/listing differences before assigning factory specifications.');
   const conflicts = Object.entries(specs).filter(([key, spec]) => !['horsepower', 'torque', 'seats'].includes(key) && spec.status === 'conflict').map(([key]) => FIELD_LABELS[key]);
   if (conflicts.length) return fail('conflict', `Resolve conflicting ${conflicts.join(', ')} before matching factory specifications.`);
   const identity = ['year', 'make', 'model'];

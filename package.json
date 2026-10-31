@@ -7,7 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node --test capability-scoring.test.mjs ebay-feasibility.test.mjs server.test.mjs vercel.test.mjs import-response.test.mjs vehicle-data.test.mjs mileage.test.mjs model-specs.test.mjs decision-engine.test.mjs decision-dashboard.test.mjs landing-preview.test.mjs vehicle-evidence.test.mjs model-research.test.mjs decision-summary.test.mjs recalls.test.mjs basic-specs.test.mjs design-system.test.mjs",
+    "test": "node --test reliable-specs.test.mjs capability-scoring.test.mjs ebay-feasibility.test.mjs server.test.mjs vercel.test.mjs import-response.test.mjs vehicle-data.test.mjs mileage.test.mjs model-specs.test.mjs decision-engine.test.mjs decision-dashboard.test.mjs landing-preview.test.mjs vehicle-evidence.test.mjs model-research.test.mjs decision-summary.test.mjs recalls.test.mjs basic-specs.test.mjs design-system.test.mjs",
     "test:model-specs:live": "node model-specs-evaluation.mjs --live",
     "test:deployment": "node deployment-smoke.mjs",
     "server": "node server.mjs",

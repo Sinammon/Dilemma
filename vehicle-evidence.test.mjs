@@ -93,11 +93,12 @@ test('VIN/listing mismatches are flagged and never overwrite original identity o
   const enriched = { ...car, enrichment: { vin: { ...decoded(), mismatches: mismatch } } };
   assert.equal(extractVehicleSpecs(enriched).specs.horsepower.value, null);
   assert.equal(enriched.model, 'Civic');
-  assert.equal(matchFuelEconomy(enriched, [row]).status, 'unmatched');
-  for (const mode of ['value', 'cost', 'performance', 'comfort', 'practical', 'balanced']) assert.equal(rankDecisionMode([enriched], mode).best.length, 0);
+  assert.equal(matchFuelEconomy(enriched, [row]).status, 'matched');
+  assert.equal(rankDecisionMode([enriched], 'cost').best.length, 1);
+  assert.equal(rankDecisionMode([enriched], 'performance').best.length, 0, 'no invented power from incompatible VIN');
   const agreement = { year: '2003', make: 'Honda', model: 'Accord', itemSpecifics: aspects({ Engine: '3.0 L V6', Transmission: '5-speed Automatic', 'Body type': 'Coupe', 'Fuel type': 'Gasoline' }), enrichment: { vin: decoded() } };
   assert.equal(vinMismatches(agreement, decoded()).length, 0);
-  assert.equal(extractVehicleSpecs(agreement).specs.displacement.status, 'corroborated');
+  assert.equal(extractVehicleSpecs(agreement).specs.displacement.status, 'seller-reported');
   assert.equal(extractVehicleSpecs(agreement).specs.horsepower.status, 'vin-record');
 });
 
@@ -140,7 +141,8 @@ test('enrichment gracefully handles missing VIN, API outages and static-data fai
   const result = await enrichVehicle(car, { fetcher: async url => { calls.push(url); return Response.json(data); } });
   assert.equal(result.vin.status, 'missing');
   assert.equal(result.fuel.status, 'matched');
-  assert.deepEqual(calls, ['/api/model-specs', '/data/fuel/2018.json']);
+  assert.equal(calls.filter(url => url === '/api/model-specs').length, 2);
+  assert.ok(calls.includes('/data/fuel/2018.json'));
   assert.deepEqual(car, before);
   const outage = await enrichVehicle({ ...car, vin }, { fetcher: async () => new Response('Unavailable', { status: 503 }) });
   assert.equal(outage.vin.status, 'unavailable');

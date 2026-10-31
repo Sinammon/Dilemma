@@ -5,9 +5,9 @@ export const normalized = value => String(value ?? '').toLowerCase().replace(/[^
 const number = value => /^\d+(?:\.\d+)?$/.test(String(value).trim()) ? Number(value) : null;
 const positive = value => number(value) > 0 ? number(value) : null;
 export const FIELD_LABELS = { year: 'Year', make: 'Make', model: 'Model', trim: 'Trim', market: 'Original market', displacement: 'Engine displacement (L)', engineType: 'Engine configuration', induction: 'Induction', cylinders: 'Cylinders', horsepower: 'Power (hp)', torque: 'Torque (Nm)', curbWeightKg: 'Curb weight (kg)', zeroTo100KphSeconds: '0–100 km/h (seconds)', zeroTo60MphSeconds: '0–60 mph (seconds)', transmission: 'Transmission', transmissionSpeeds: 'Transmission speeds', transmissionCode: 'Transmission code', drivetrain: 'Drivetrain', fuelType: 'Fuel type', bodyType: 'Body type', seats: 'Seating capacity' };
-// A seating difference still requires review, but does not change model identity
-// or engine/body configuration. Never let research replace that seller value.
-export const researchVinMismatches = car => (car.enrichment?.vin?.mismatches || []).filter(item => item.field !== FIELD_LABELS.seats);
+// VIN differences remain secondary to listing values. Only contradictions
+// within the seller listing can prevent listing-based model research.
+export const researchVinMismatches = car => (car.enrichment?.vin?.mismatches || []).filter(item => item.listing === 'Conflicting seller values');
 export const FEATURE_RULES = [
   ['Heated seats', /\bheated (?:front |rear )?seats?\b/i], ['Leather seats', /\b(?:full[- ]grain )?leather (?:seats?|interior|upholstery)\b/i],
   ['Navigation', /\b(?:navigation|gps)\b/i], ['Backup camera', /\b(?:backup|back[- ]up|rear[- ]?view|reversing) camera\b/i],
@@ -142,10 +142,13 @@ function resolve(evidence, tolerance = 0) {
 }
 
 export function specEvidenceLabel(spec) {
+  if (spec.status === 'model-estimate') return `Estimated model spec · unverified AI${spec.stale ? ' · stale saved value' : ''}`;
+  if (spec.quality === 'exact' && spec.status === 'model-reference') return 'Factory reference · sourced manufacturer specification';
+  if (spec.quality === 'typical') return `Typical model spec · ${spec.origin === 'reviewed-reference' ? 'reviewed reference' : 'cited source'}${spec.stale ? ' · stale saved value' : ''}`;
   if (spec.status === 'model-reference') return 'Typical model spec · AI-researched with cited sources';
   const factory = spec.evidence.some(item => item.type === 'factory-reference');
   if (factory) return spec.status === 'corroborated' ? 'Listing/VIN agrees with factory reference; not measured output' : 'Manufacturer factory reference; not measured output';
-  return spec.status === 'vin-record' ? 'NHTSA original VIN record' : spec.status === 'corroborated' ? 'Seller claim + NHTSA VIN record' : 'Seller-reported';
+  return spec.status === 'vin-record' ? 'VIN supplement · NHTSA original record' : spec.status === 'corroborated' ? 'Seller claim + NHTSA VIN record' : spec.listingPreferred ? 'Seller-reported · listing preferred over VIN' : 'Seller-reported';
 }
 
 export function extractVehicleSpecs(car) {
@@ -183,15 +186,26 @@ export function extractVehicleSpecs(car) {
     }
   }
   const vin = car.enrichment?.vin;
-  if (vin?.status === 'decoded' && !vin.mismatches?.length) {
+  if (vin?.status === 'decoded') {
+    const seller = Object.fromEntries(Object.entries(evidence).map(([key, items]) => [key, resolve(items)]));
+    const agrees = keys => keys.every(key => seller[key]?.status !== 'conflict' && (seller[key]?.value == null || normalize(key, vin.fields?.[key]) == null || normalized(seller[key].value) === normalized(normalize(key, vin.fields[key]))));
+    const identityAgrees = ['year', 'make', 'model'].every(key => normalize(key, vin.fields?.[key]) != null) && agrees(['year', 'make', 'model']);
+    const powertrainAgrees = agrees(['displacement', 'cylinders', 'engineType', 'induction', 'transmission', 'transmissionSpeeds', 'drivetrain', 'fuelType']);
+    const bodyAgrees = agrees(['bodyType']);
     for (const [key, value] of Object.entries(vin.fields || {})) {
-      if (!evidence[key]) continue;
+      if (!evidence[key] || evidence[key].length || !identityAgrees) continue;
+      if (['horsepower', 'torque', 'displacement', 'cylinders', 'engineType', 'induction', 'transmission', 'transmissionSpeeds', 'drivetrain', 'fuelType'].includes(key) && !powertrainAgrees) continue;
+      if (['curbWeightKg', 'bodyType', 'seats'].includes(key) && !bodyAgrees) continue;
+      if (key === 'curbWeightKg' && !powertrainAgrees) continue;
       add(key, normalize(key, value), 'NHTSA vPIC', 'vpic', String(value ?? ''));
     }
   }
   const factory = car.enrichment?.factorySpecs;
-  if (factory?.status === 'matched' && !vin?.mismatches?.length) {
-    for (const key of ['horsepower', 'torque']) {
+  if (factory?.status === 'matched') {
+    for (const key of Object.keys(factory.values || {})) {
+      if (!evidence[key]) continue;
+      if (evidence[key].some(e => e.type.startsWith('seller'))) continue;
+      evidence[key] = evidence[key].filter(e => e.type !== 'vpic');
       const value = normalize(key, factory.values?.[key]);
       if (value != null) evidence[key].push({ value, source: factory.source.publisher, type: 'factory-reference', url: factory.source.url, quote: factory.quotes[key], configuration: factory.configuration });
     }
@@ -217,8 +231,12 @@ export function extractVehicleSpecs(car) {
     if (input) for (const [field, finding] of Object.entries(research.fields || {})) {
       const target = field.startsWith('feature:') ? features[field.slice(8)] : specs[field];
       if (!target || target.status !== 'unknown' || !usableModelFinding(field, finding, input)) continue;
-      Object.assign(target, finding, { referenceValue: finding.kind === 'configuration' ? finding.value : undefined, value: finding.kind === 'value' ? finding.value : null, status: finding.kind === 'value' ? 'model-reference' : 'model-context' });
+      Object.assign(target, finding, { referenceValue: finding.kind === 'configuration' ? finding.value : undefined, value: finding.kind === 'value' ? finding.value : null, status: finding.kind === 'value' ? finding.quality === 'estimated' ? 'model-estimate' : 'model-reference' : 'model-context' });
     }
+  }
+  for (const mismatch of vin?.mismatches || []) {
+    const key = Object.keys(FIELD_LABELS).find(key => FIELD_LABELS[key] === mismatch.field);
+    if (key && specs[key].value != null) specs[key].listingPreferred = true;
   }
   return { specs, features };
 }

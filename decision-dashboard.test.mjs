@@ -164,7 +164,7 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     assert.equal(document.querySelectorAll('.car-card').length, 0);
     await go('decide');
     assert.match(document.querySelector('.result-banner').textContent, /shortlist comes first/);
-    // A new app instance behaves like refresh: no browser storage is used.
+    // Refresh clears the shortlist; only sanitized model specifications may persist.
     await act(async () => root.render(null));
     await act(async () => root.render(React.createElement(App)));
     assert.equal(document.querySelectorAll('.ranking-row').length, 0);
@@ -196,13 +196,20 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     await act(async () => document.querySelector('.section-heading button').click());
     const researchPending = [];
     let researchedImports = 0;
-    const researchField = (value, kind = 'value') => ({ kind, value: kind === 'value' ? value : null, minimum: 130, maximum: 180, alternatives: [], scope: { year: 2018, make: 'Honda', model: 'Civic' }, sharedAcross: DISCRIMINATORS, evidence: [{ type: 'model-reference', source: 'Honda Canada', url: 'https://hondanews.ca/en-CA/specifications', quote: `${value} hp`, configuration: { year: 2018, make: 'Honda', model: 'Civic' } }] });
+    const savedResponses = new Map();
+    const researchField = (value, kind = 'value', model = 'Civic') => ({ kind, value: kind === 'value' ? value : null, minimum: 130, maximum: 180, alternatives: [], scope: { year: 2018, make: 'Honda', model }, sharedAcross: DISCRIMINATORS, evidence: [{ type: 'model-reference', source: 'Honda Canada', url: 'https://hondanews.ca/en-CA/specifications', quote: `${value} hp`, configuration: { year: 2018, make: 'Honda', model } }] });
     globalThis.fetch = async (input, init) => {
       if (String(input).startsWith('/data/fuel/')) return Response.json({ columns: [], rows: [] });
-      if (input === '/api/model-specs') return new Promise(resolve => researchPending.push({ resolve, signal: init.signal }));
-      if (input === '/api/vehicle-data') return Response.json({ vin: { status: 'decoded', fields: { year: '2018', make: 'Honda', model: 'Civic', seats: 5 } } });
+      if (input === '/api/model-specs') {
+        const config = JSON.parse(init.body);
+        if (config.phase === 'research') return Response.json(savedResponses.get(config.model) || { modelSpecs: { status: 'unavailable', fields: {} } });
+        return new Promise(resolve => researchPending.push({ signal: init.signal, resolve: async response => {
+          const data = await response.json(); if (!init.signal.aborted) savedResponses.set(config.model, data); resolve(Response.json(data));
+        } }));
+      }
+      if (input === '/api/vehicle-data') return Response.json({ vin: { status: 'decoded', fields: { year: '2018', make: 'Honda', model: 'CR-V', seats: 5 } } });
       researchedImports++;
-      return Response.json({ vehicle: { legacyItemId: `${researchedImports}77777777777`, year: '2018', make: 'Honda', model: 'Civic', description: 'Odometer: 2k kms.', images: [], itemSpecifics: researchedImports === 4 ? [{ name: 'Seating capacity', value: '4' }] : [], vin: researchedImports === 4 ? '1HGCM82633A004352' : null } });
+      return Response.json({ vehicle: { legacyItemId: `${researchedImports}77777777777`, year: '2018', make: 'Honda', model: ['Civic', 'Accord', 'Fit', 'CR-V', 'Pilot'][researchedImports - 1], description: 'Odometer: 2k kms.', images: [], itemSpecifics: researchedImports === 4 ? [{ name: 'Seating capacity', value: '4' }] : [], vin: researchedImports === 4 ? '1HGCM82633A004352' : null } });
     };
     await change('#listing-url', 'https://www.ebay.ca/itm/177777777777');
     await submit();
@@ -212,7 +219,7 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     await submit();
     await act(async () => {
       researchPending[0].resolve(Response.json({ modelSpecs: { status: 'matched', fields: { horsepower: researchField(158), torque: researchField(150, 'range') }, dimensionRatings: { rideQuality: { rating: 4, rationale: 'Synthetic reviewed ride assessment for this regression.', scope: { year: 2018, make: 'Honda', model: 'Civic' }, evidence: [{ source: 'Synthetic editorial fixture', url: 'https://reviews.example.test/fixture', quote: 'Synthetic ride evidence, not a real review.', editorial: true }] } }, searchSuggestions: '<div>Google Search</div>' } }));
-      researchPending[1].resolve(Response.json({ modelSpecs: { status: 'matched', fields: { horsepower: researchField(132) } } }));
+      researchPending[1].resolve(Response.json({ modelSpecs: { status: 'matched', fields: { horsepower: researchField(132, 'value', 'Accord') } } }));
       await new Promise(resolve => setTimeout(resolve, 25));
     });
     assert.match(document.querySelector('table').textContent, /158.*Typical model spec/);
@@ -247,6 +254,10 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     assert.match(document.querySelector('.car-card').textContent, /Previous research is still available/);
     assert.equal(document.querySelector('.source-status-grid .capability-details strong').textContent, '4 / 5', 'quota failure preserves previous dimension results');
     assert.equal(document.querySelectorAll('.car-card').length, 2);
+    assert.ok(window.localStorage.getItem('dilemma:model-specs:v1'));
+    await act(async () => document.querySelector('[data-action="clear-saved-specs"]').click());
+    assert.equal(window.localStorage.getItem('dilemma:model-specs:v1'), null);
+    assert.equal(document.querySelectorAll('.car-card').length, 2, 'clearing saved specs preserves the temporary shortlist');
     // A full shortlist must still search and retry its fourth car independently.
     for (const id of ['377777777777', '477777777777']) {
       await change('#listing-url', `https://www.ebay.ca/itm/${id}`);
@@ -273,7 +284,7 @@ test('three-page journey preserves imports, supports all modes, removes and repl
     assert.equal(researchPending.length, 7);
     assert.equal(researchPending[3].signal.aborted, false, 'restarting fourth-car research leaves the third car running');
     await act(async () => {
-      researchPending.at(-1).resolve(Response.json({ modelSpecs: { status: 'matched', fields: { horsepower: researchField(158) } } }));
+      researchPending.at(-1).resolve(Response.json({ modelSpecs: { status: 'matched', fields: { horsepower: researchField(158, 'value', 'CR-V') } } }));
       abandonedFourth.resolve(Response.json({ modelSpecs: { status: 'unavailable', fields: {}, reason: 'Stale fourth-car response' } }));
       researchPending[3].resolve(Response.json({ modelSpecs: { status: 'unavailable', fields: {}, reason: 'Third-car research unavailable' } }));
       await new Promise(resolve => setTimeout(resolve, 15));

@@ -19,7 +19,6 @@ export function supportedClaims(profile) {
 
 export function researchForCar(car, profiles = MODEL_PROFILES) {
   const none = reason => ({ status: 'unavailable', reason, claims: [] });
-  if (car.enrichment?.vin?.mismatches?.length) return none('Resolve VIN/listing differences before applying model research.');
   const { specs } = extractVehicleSpecs(car);
   if (['year', 'make', 'model'].some(key => specs[key].value == null)) return none('A supported year, make and model are needed to select research.');
   const candidates = profiles.filter(p => p.year === specs.year.value && normalized(p.make) === normalized(specs.make.value) && p.models.some(m => normalized(m) === normalized(specs.model.value)));

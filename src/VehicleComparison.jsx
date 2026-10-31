@@ -30,7 +30,7 @@ function ComparisonWarnings({ car }) {
   const warnings = detectWarnings(car);
   return warnings.length > 0 && <div className="warning-details" role="note"><strong>Review before choosing</strong>{warnings.map(warning => <p key={warning.label}>{warning.label}: {warning.evidence}</p>)}</div>;
 }
-export default function VehicleComparison({ cars, removeCar, clearCars, importForm, navigate, retryResearch }) {
+export default function VehicleComparison({ cars, removeCar, clearCars, importForm, navigate, retryResearch, clearSavedSpecs }) {
   const records = new Map(cars.map(car => [car, extractVehicleSpecs(car)]));
   const spec = (car, key) => <SpecValue spec={records.get(car).specs[key]} />;
   const keyFields = ['transmission', 'transmissionSpeeds', 'displacement', 'engineType', 'induction', 'cylinders', 'horsepower', 'torque', 'curbWeightKg', 'zeroTo100KphSeconds', 'zeroTo60MphSeconds', 'drivetrain', 'fuelType', 'bodyType', 'seats'];
@@ -43,6 +43,8 @@ export default function VehicleComparison({ cars, removeCar, clearCars, importFo
   const aspectNames = [...new Set(cars.flatMap(car => (car.itemSpecifics || []).map(a => a.name).filter(Boolean)))];
   return <section className="comparison-section page-section">
     <div className="section-heading"><div><h1 tabIndex={-1}>Compare Your Vehicles</h1><p className="page-intro">Key facts, sourced model context and the questions still worth asking.</p><p className="shortlist-count">{cars.length} of 4 contenders</p></div>{!!cars.length && <button className="text-button" onClick={clearCars}>Clear comparison</button>}</div>
+    {clearSavedSpecs && <button type="button" className="text-button" data-action="clear-saved-specs" onClick={clearSavedSpecs}>Clear saved model specs</button>}
+    <p className="evidence-legend">Model specifications may be saved on this device. Listing details remain temporary.</p>
     <div className="comparison-import">{importForm}</div>
     {!cars.length ? <div className="empty-state"><h2>Your shortlist is ready for its first car.</h2><p>Import an eBay.ca listing above. Missing specifications will stay Unknown.</p></div> : <>
       <div className="car-grid" style={{ '--columns': cars.length }}>{cars.map((car, i) => <m.article className="car-card" key={car.legacyItemId}><VehicleImage car={car} /><div className="car-card-body"><div className="card-topline"><span>Contender {i + 1}</span><button className="remove-button" aria-label={`Remove ${vehicleName(car)}`} onClick={() => removeCar(car.legacyItemId)}><Icon name="close" size={18} /></button></div><h2 className="vehicle-name">{vehicleName(car)}</h2><p className="car-price">{priceDisplay(car)}</p><p className="car-meta">{mileageDisplay(car)}</p><p className="car-meta">{locationDisplay(car)}</p><ComparisonWarnings car={car} /><ResearchAction car={car} retryResearch={retryResearch} /><ListingLink car={car} /></div></m.article>)}</div>

@@ -6,7 +6,8 @@ import VehicleComparison from './VehicleComparison.jsx';
 import LandingPreview from './LandingPreview.jsx';
 import Icon from './Icons.jsx';
 import { enrichVehicle } from './enrichment.js';
-import { loadModelSpecs } from './model-specs.js';
+import { mergeResearch } from '../shared/model-specs.js';
+import { modelSpecCache } from './spec-cache.js';
 import { makeDemoCars } from './demo-cars.js';
 
 const route = () => ['compare', 'decide'].includes(window.location.hash.slice(1)) ? window.location.hash.slice(1) : 'import';
@@ -49,33 +50,35 @@ export default function App() {
   function enrichImported(imported) {
     const controller = new AbortController();
     controller.vehicleId = imported.legacyItemId;
+    controller.researchController = new AbortController();
     enrichmentTasks.current.add(controller);
-    // A per-import token survives partial updates and cannot match a removed/replaced car.
-    const applyEnrichment = enrichment => {
-      if (!controller.signal.aborted) setCars(previous => previous.map(car => car === imported || car.enrichmentToken === controller ? { ...car, enrichmentToken: controller, enrichment } : car));
+    const apply = (enrichment, { domain = 'complete' } = {}) => {
+      if (controller.signal.aborted) return;
+      setCars(current => current.map(item => {
+        if (item !== imported && item.enrichmentToken !== controller) return item;
+        const previous = item.enrichment || {};
+        const update = domain === 'vin' || domain === 'complete' ? { vin: enrichment.vin, fuel: enrichment.fuel, factorySpecs: enrichment.factorySpecs }
+          : { modelSpecs: mergeResearch(previous.modelSpecs, enrichment.modelSpecs), specsStatus: enrichment.specsStatus };
+        if (domain === 'initial') { update.factorySpecs = enrichment.factorySpecs; update.vin = enrichment.vin; }
+        if (domain !== 'vin' && domain !== 'complete' && controller.researchController.signal.aborted) return item;
+        return { ...item, enrichmentToken: controller, enrichment: { ...previous, ...update, status: domain === 'complete' ? 'complete' : 'loading-model' } };
+      }));
     };
-    void enrichVehicle(imported, { signal: controller.signal, onUpdate: applyEnrichment }).then(applyEnrichment).catch(() => {
-      applyEnrichment({ status: 'unavailable' });
-    }).finally(() => enrichmentTasks.current.delete(controller));
+    void enrichVehicle(imported, { signal: controller.signal, researchSignal: controller.researchController.signal, onUpdate: apply }).then(value => apply(value, { domain: 'complete' })).catch(() => {}).finally(() => enrichmentTasks.current.delete(controller));
   }
   function retryResearch(car) {
-    for (const previous of enrichmentTasks.current) if (previous.vehicleId === car.legacyItemId) previous.abort();
+    for (const previous of enrichmentTasks.current) if (previous.vehicleId === car.legacyItemId) {
+      if (previous.kind === 'research') previous.abort(); else previous.researchController?.abort();
+    }
     const controller = new AbortController();
-    controller.vehicleId = car.legacyItemId;
+    controller.kind = 'research'; controller.vehicleId = car.legacyItemId;
+    const owner = car.enrichmentToken;
     enrichmentTasks.current.add(controller);
-    const previous = car.enrichment || {};
-    const apply = enrichment => { if (!controller.signal.aborted) setCars(current => current.map(item => item === car || item.enrichmentToken === controller ? { ...item, enrichmentToken: controller, enrichment } : item)); };
-    apply({ ...previous, status: 'loading-model' });
-    const finish = modelSpecs => {
-      const usable = Object.keys(modelSpecs.fields || {}).length || modelSpecs.insights?.length || Object.keys(modelSpecs.dimensionRatings || {}).length;
-      const hasPrevious = ['matched', 'partial'].includes(previous.modelSpecs?.status);
-      const research = usable ? { ...modelSpecs, fields: { ...previous.modelSpecs?.fields, ...modelSpecs.fields }, dimensionRatings: { ...previous.modelSpecs?.dimensionRatings, ...modelSpecs.dimensionRatings }, insights: modelSpecs.insights?.length ? modelSpecs.insights : previous.modelSpecs?.insights || [], assessments: modelSpecs.insights?.length ? modelSpecs.assessments : previous.modelSpecs?.assessments || {} }
-        : hasPrevious ? { ...previous.modelSpecs, lastAttempt: { status: modelSpecs.status, reason: modelSpecs.reason } } : modelSpecs;
-      apply({ ...previous, status: 'complete', modelSpecs: research });
+    const apply = (enrichment, { domain = 'specs' } = {}) => {
+      if (controller.signal.aborted || domain === 'vin') return;
+      setCars(current => current.map(item => (item === car || owner && item.enrichmentToken === owner) ? { ...item, enrichment: { ...item.enrichment, modelSpecs: mergeResearch(item.enrichment?.modelSpecs, enrichment.modelSpecs), specsStatus: enrichment.specsStatus, status: enrichment.specsStatus === 'verifying' || enrichment.specsStatus === 'loading-quick' ? 'loading-model' : 'complete' } } : item));
     };
-    void loadModelSpecs(car, { signal: controller.signal }).then(finish).catch(() => {
-      if (!controller.signal.aborted) finish({ status: 'unavailable', fields: {}, reason: 'AI research could not finish. Retry research to search again.' });
-    }).finally(() => enrichmentTasks.current.delete(controller));
+    void enrichVehicle(car, { signal: controller.signal, onUpdate: apply, skipVin: true, force: true }).then(apply).catch(() => {}).finally(() => enrichmentTasks.current.delete(controller));
   }
   function loadDemo() {
     if (cars.length || loading) return;
@@ -128,8 +131,8 @@ export default function App() {
           <section className="final-cta"><h2>Make room for a better decision.</h2><p>Start with a car you already have your eye on.</p><button type="button" onClick={startImport}>Import your first car <Icon name="arrow" size={20} /></button></section>
         </section>
       </>}
-      {page === 'compare' && <VehicleComparison cars={cars} retryResearch={retryResearch} importForm={importForm} navigate={navigate} removeCar={id => { for (const controller of enrichmentTasks.current) if (controller.vehicleId === id) controller.abort(); setCars(previous => previous.filter(car => car.legacyItemId !== id)); setNotice('Car removed. You can import a replacement.'); }} clearCars={() => { for (const controller of enrichmentTasks.current) controller.abort(); setCars([]); setNotice('Comparison cleared.'); }} />}
+      {page === 'compare' && <VehicleComparison cars={cars} retryResearch={retryResearch} clearSavedSpecs={() => { modelSpecCache.clear(); setNotice('Saved model specifications cleared. Your current comparison is unchanged.'); }} importForm={importForm} navigate={navigate} removeCar={id => { for (const controller of enrichmentTasks.current) if (controller.vehicleId === id) controller.abort(); setCars(previous => previous.filter(car => car.legacyItemId !== id)); setNotice('Car removed. You can import a replacement.'); }} clearCars={() => { for (const controller of enrichmentTasks.current) controller.abort(); setCars([]); setNotice('Comparison cleared.'); }} />}
       {page === 'decide' && <DecisionDashboard cars={cars} retryResearch={retryResearch} mode={mode} setMode={setMode} />}
-    </m.div></main><footer><a className="footer-brand" href="#import">Dilemma<span>.</span></a><span>A clearer road to your next car.</span><span className="prototype-label">In memory only · Refresh clears your shortlist</span></footer>
+    </m.div></main><footer><a className="footer-brand" href="#import">Dilemma<span>.</span></a><span>A clearer road to your next car.</span><span className="prototype-label">Temporary shortlist · Refresh clears your shortlist</span></footer>
   </div></MotionConfig></LazyMotion>;
 }
